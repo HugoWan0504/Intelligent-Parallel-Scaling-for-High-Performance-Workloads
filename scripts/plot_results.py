@@ -17,7 +17,9 @@ def read_results(filename):
         reader = csv.DictReader(f)
 
         for row in reader:
-            if row["correct"].strip().lower() != "true":
+            correct_value = row["correct"].strip().lower()
+
+            if correct_value == "false":
                 print(f"Warning: skipping incorrect row: {row}")
                 continue
 
@@ -59,28 +61,6 @@ def compute_summary(rows):
     return summary
 
 
-def write_summary(summary):
-    with open(SUMMARY_FILE, "w", newline="") as f:
-        writer = csv.DictWriter(
-            f,
-            fieldnames=[
-                "mode",
-                "N",
-                "threads",
-                "avg_time_sec",
-                "best_time_sec",
-                "speedup_from_avg",
-                "efficiency_from_avg",
-                "num_trials"
-            ]
-        )
-
-        writer.writeheader()
-
-        for row in summary:
-            writer.writerow(row)
-
-
 def get_sequential_avg_times(summary):
     seq_times = {}
 
@@ -105,6 +85,37 @@ def add_speedup_and_efficiency(summary):
             row["efficiency_from_avg"] = 0.0
 
 
+def write_summary(summary):
+    with open(SUMMARY_FILE, "w", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "mode",
+                "N",
+                "threads",
+                "avg_time_sec",
+                "best_time_sec",
+                "speedup_from_avg",
+                "efficiency_from_avg",
+                "num_trials"
+            ]
+        )
+
+        writer.writeheader()
+
+        for row in summary:
+            writer.writerow({
+                "mode": row["mode"],
+                "N": row["N"],
+                "threads": row["threads"],
+                "avg_time_sec": f"{row['avg_time_sec']:.3f}",
+                "best_time_sec": f"{row['best_time_sec']:.3f}",
+                "speedup_from_avg": f"{row['speedup_from_avg']:.3f}",
+                "efficiency_from_avg": f"{row['efficiency_from_avg']:.3f}",
+                "num_trials": row["num_trials"]
+            })
+
+
 def make_dir(path):
     os.makedirs(path, exist_ok=True)
 
@@ -114,7 +125,7 @@ def plot_metric_by_threads_for_each_size(summary, metric, ylabel, title_prefix, 
     For each N:
         x-axis: thread count
         lines: static / optimized
-        dynamic appears as one point because it chooses one thread count automatically
+        dynamic appears as one point because it chooses one thread count automatically.
     """
 
     make_dir(output_dir)
@@ -122,7 +133,7 @@ def plot_metric_by_threads_for_each_size(summary, metric, ylabel, title_prefix, 
     sizes = sorted(set(row["N"] for row in summary))
 
     for n in sizes:
-        plt.figure()
+        plt.figure(figsize=(8, 5))
 
         for mode in ["static", "optimized", "dynamic"]:
             values = [
@@ -142,7 +153,7 @@ def plot_metric_by_threads_for_each_size(summary, metric, ylabel, title_prefix, 
 
         plt.xlabel("Thread Count")
         plt.ylabel(ylabel)
-        plt.title(f"{title_prefix} for N={n}")
+        plt.title(f"{title_prefix} by Thread Count, N={n}")
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
@@ -156,7 +167,7 @@ def plot_metric_by_size_for_each_mode(summary, metric, ylabel, title_prefix, out
     """
     For each mode:
         x-axis: matrix size
-        lines: different thread counts
+        lines: different thread counts.
     """
 
     make_dir(output_dir)
@@ -164,7 +175,7 @@ def plot_metric_by_size_for_each_mode(summary, metric, ylabel, title_prefix, out
     modes = ["static", "optimized", "dynamic"]
 
     for mode in modes:
-        plt.figure()
+        plt.figure(figsize=(8, 5))
 
         values_for_mode = [
             row for row in summary
@@ -191,7 +202,7 @@ def plot_metric_by_size_for_each_mode(summary, metric, ylabel, title_prefix, out
 
         plt.xlabel("Matrix Size N")
         plt.ylabel(ylabel)
-        plt.title(f"{title_prefix} for {mode}")
+        plt.title(f"{title_prefix} by Matrix Size, {mode}")
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
@@ -241,6 +252,16 @@ def get_dynamic_by_size(summary):
     return dynamic
 
 
+def get_sequential_by_size(summary):
+    sequential = {}
+
+    for row in summary:
+        if row["mode"] == "sequential":
+            sequential[row["N"]] = row
+
+    return sequential
+
+
 def plot_best_approach_comparison(summary, metric, ylabel, title, output_file):
     """
     Compare:
@@ -255,23 +276,14 @@ def plot_best_approach_comparison(summary, metric, ylabel, title, output_file):
 
     sizes = sorted(set(row["N"] for row in summary))
 
-    sequential = {
-        row["N"]: row for row in summary
-        if row["mode"] == "sequential"
-    }
-
-    best_static = get_best_static_by_size(summary)
-    dynamic = get_dynamic_by_size(summary)
-    best_optimized = get_best_optimized_by_size(summary)
-
     comparison_groups = [
-        ("sequential", sequential),
-        ("best static", best_static),
-        ("dynamic", dynamic),
-        ("best optimized", best_optimized)
+        ("sequential", get_sequential_by_size(summary)),
+        ("best static", get_best_static_by_size(summary)),
+        ("dynamic", get_dynamic_by_size(summary)),
+        ("best optimized", get_best_optimized_by_size(summary))
     ]
 
-    plt.figure()
+    plt.figure(figsize=(8, 5))
 
     for label, group in comparison_groups:
         x_values = []
@@ -325,14 +337,59 @@ def write_best_comparison_table(summary):
             writer.writerow([
                 n,
                 dynamic[n]["threads"],
-                dynamic[n]["avg_time_sec"],
+                f"{dynamic[n]['avg_time_sec']:.3f}",
                 best_static[n]["threads"],
-                best_static[n]["avg_time_sec"],
+                f"{best_static[n]['avg_time_sec']:.3f}",
                 best_optimized[n]["threads"],
-                best_optimized[n]["avg_time_sec"]
+                f"{best_optimized[n]['avg_time_sec']:.3f}"
             ])
 
     print(f"Generated: {output_file}")
+
+
+def plot_overall_average_comparison(summary, metric, ylabel, title, output_file):
+    """
+    Creates one extra plot comparing average metric value across approaches.
+
+    For static and optimized:
+        use the best configuration per matrix size first,
+        then average across all matrix sizes.
+
+    For dynamic:
+        use the dynamic-selected configuration per matrix size,
+        then average across all matrix sizes.
+    """
+
+    groups = {
+        "sequential": get_sequential_by_size(summary),
+        "best static": get_best_static_by_size(summary),
+        "dynamic": get_dynamic_by_size(summary),
+        "best optimized": get_best_optimized_by_size(summary)
+    }
+
+    labels = []
+    averages = []
+
+    for label, group in groups.items():
+        values = [row[metric] for row in group.values()]
+
+        if not values:
+            continue
+
+        labels.append(label)
+        averages.append(sum(values) / len(values))
+
+    plt.figure(figsize=(8, 5))
+    plt.bar(labels, averages)
+
+    plt.xlabel("Approach")
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.grid(True, axis="y")
+    plt.tight_layout()
+
+    plt.savefig(output_file)
+    plt.close()
 
 
 def main():
@@ -381,8 +438,10 @@ def main():
         by_threads_dir = os.path.join(PLOTS_DIR, folder, "by_threads")
         by_size_dir = os.path.join(PLOTS_DIR, folder, "by_size")
         comparison_dir = os.path.join(PLOTS_DIR, folder, "best_comparison")
+        overall_dir = os.path.join(PLOTS_DIR, folder, "overall_average")
 
         make_dir(comparison_dir)
+        make_dir(overall_dir)
 
         plot_metric_by_threads_for_each_size(
             summary,
@@ -406,6 +465,14 @@ def main():
             ylabel,
             f"{title}: Sequential vs Best Static vs Dynamic vs Best Optimized",
             os.path.join(comparison_dir, f"{metric}_best_comparison.png")
+        )
+
+        plot_overall_average_comparison(
+            summary,
+            metric,
+            ylabel,
+            f"Overall Average {title}",
+            os.path.join(overall_dir, f"{metric}_overall_average.png")
         )
 
     write_best_comparison_table(summary)

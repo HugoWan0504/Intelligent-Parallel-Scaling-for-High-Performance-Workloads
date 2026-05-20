@@ -8,7 +8,7 @@ OUTPUT="results/results.csv"
 
 echo "mode,N,threads,trial,time_sec,correct" > "$OUTPUT"
 
-SIZES=(256 512 1024)
+SIZES=(256 512 1024 1536 2048)
 THREADS=(1 2 4 8)
 TRIALS=3
 

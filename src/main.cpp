@@ -35,7 +35,7 @@ static void print_table_output(const std::string& mode,
               << std::left << std::setw(10) << mode << " | "
               << std::right << std::setw(6) << n << " | "
               << std::right << std::setw(7) << threads << " | "
-              << std::right << std::setw(11) << std::fixed << std::setprecision(6) << runtime << " | "
+              << std::right << std::setw(11) << std::fixed << std::setprecision(3) << runtime << " | "
               << std::left << std::setw(7) << correct << " |\n";
 
     std::cout << "+------------+--------+---------+-------------+---------+\n";
@@ -49,7 +49,7 @@ static void print_csv_output(const std::string& mode,
     std::cout << mode << ","
               << n << ","
               << threads << ","
-              << std::fixed << std::setprecision(6) << runtime << ","
+              << std::fixed << std::setprecision(3) << runtime << ","
               << correct << "\n";
 }
 
