@@ -13,19 +13,19 @@ THREADS=(1 2 4 8)
 
 for N in "${SIZES[@]}"; do
     echo "Running sequential N=$N"
-    ./matmul sequential "$N" 1 >> "$OUTPUT"
+    ./matmul sequential "$N" 1 --csv >> "$OUTPUT"
 
     for T in "${THREADS[@]}"; do
         echo "Running static N=$N threads=$T"
-        ./matmul static "$N" "$T" >> "$OUTPUT"
+        ./matmul static "$N" "$T" --csv >> "$OUTPUT"
     done
 
     echo "Running dynamic N=$N"
-    ./matmul dynamic "$N" 0 >> "$OUTPUT"
+    ./matmul dynamic "$N" 0 --csv >> "$OUTPUT"
 
     for T in "${THREADS[@]}"; do
         echo "Running optimized N=$N threads=$T"
-        ./matmul optimized "$N" "$T" >> "$OUTPUT"
+        ./matmul optimized "$N" "$T" --csv >> "$OUTPUT"
     done
 done
 

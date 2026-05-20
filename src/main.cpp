@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <cstdlib>
+#include <iomanip>
 
 static void print_usage() {
     std::cout << "Usage:\n";
@@ -20,8 +21,40 @@ static void print_usage() {
     std::cout << "  ./matmul optimized 1024 8\n";
 }
 
+static void print_table_output(const std::string& mode,
+                               int n,
+                               int threads,
+                               double runtime,
+                               const std::string& correct) {
+    std::cout << "\n";
+    std::cout << "+------------+--------+---------+-------------+---------+\n";
+    std::cout << "| Mode       | N      | Threads | Time (sec)  | Correct |\n";
+    std::cout << "+------------+--------+---------+-------------+---------+\n";
+
+    std::cout << "| "
+              << std::left << std::setw(10) << mode << " | "
+              << std::right << std::setw(6) << n << " | "
+              << std::right << std::setw(7) << threads << " | "
+              << std::right << std::setw(11) << std::fixed << std::setprecision(6) << runtime << " | "
+              << std::left << std::setw(7) << correct << " |\n";
+
+    std::cout << "+------------+--------+---------+-------------+---------+\n";
+}
+
+static void print_csv_output(const std::string& mode,
+                             int n,
+                             int threads,
+                             double runtime,
+                             const std::string& correct) {
+    std::cout << mode << ","
+              << n << ","
+              << threads << ","
+              << std::fixed << std::setprecision(6) << runtime << ","
+              << correct << "\n";
+}
+
 int main(int argc, char* argv[]) {
-    if (argc != 4) {
+    if (argc != 4 && argc != 5) {
         print_usage();
         return 1;
     }
@@ -29,6 +62,18 @@ int main(int argc, char* argv[]) {
     std::string mode = argv[1];
     int n = std::atoi(argv[2]);
     int thread_count = std::atoi(argv[3]);
+
+    bool csv_mode = false;
+    if (argc == 5) {
+        std::string output_mode = argv[4];
+        if (output_mode == "--csv") {
+            csv_mode = true;
+        } else {
+            std::cerr << "Error: unknown option: " << output_mode << "\n";
+            print_usage();
+            return 1;
+        }
+    }
 
     if (n <= 0) {
         std::cerr << "Error: matrix_size must be positive.\n";
@@ -79,11 +124,11 @@ int main(int argc, char* argv[]) {
         correct = compare_matrices(C, reference) ? "true" : "false";
     }
 
-    std::cout << mode << ","
-              << n << ","
-              << actual_threads << ","
-              << runtime << ","
-              << correct << "\n";
+    if (csv_mode) {
+        print_csv_output(mode, n, actual_threads, runtime, correct);
+    } else {
+        print_table_output(mode, n, actual_threads, runtime, correct);
+    }
 
     return 0;
 }

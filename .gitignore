@@ -1,5 +1,6 @@
 # Build outputs
 matmul
+matmul.exe
 *.o
 *.out
 *.exe
