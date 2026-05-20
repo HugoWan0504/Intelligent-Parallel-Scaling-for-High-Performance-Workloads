@@ -48,13 +48,12 @@ static void* optimized_worker(void* arg) {
     return nullptr;
 }
 
-void matmul_optimized(const Matrix& A, const Matrix& B, Matrix& C, int thread_count) {
+void matmul_optimized(const Matrix& A, const Matrix& B, Matrix& C, int thread_count, int block_size) {
     int n = A.n;
     zero_matrix(C);
 
     thread_count = std::max(1, std::min(thread_count, n));
-
-    const int block_size = 32;
+    block_size = std::max(1, std::min(block_size, n));
 
     std::vector<pthread_t> threads(thread_count);
     std::vector<OptimizedTask> tasks(thread_count);

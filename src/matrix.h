@@ -23,6 +23,6 @@ bool compare_matrices(const Matrix& a, const Matrix& b, double eps = 1e-6);
 void matmul_sequential(const Matrix& A, const Matrix& B, Matrix& C);
 void matmul_static(const Matrix& A, const Matrix& B, Matrix& C, int thread_count);
 void matmul_dynamic(const Matrix& A, const Matrix& B, Matrix& C, int& selected_threads);
-void matmul_optimized(const Matrix& A, const Matrix& B, Matrix& C, int thread_count);
+void matmul_optimized(const Matrix& A, const Matrix& B, Matrix& C, int thread_count, int block_size = 32);
 
 #endif

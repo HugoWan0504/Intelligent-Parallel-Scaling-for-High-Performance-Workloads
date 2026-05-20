@@ -8,7 +8,7 @@
 
 static void print_usage() {
     std::cout << "Usage:\n";
-    std::cout << "  ./matmul <mode> <matrix_size> <thread_count>\n\n";
+    std::cout << "  ./matmul <mode> <matrix_size> <thread_count> [--csv] [--block-size B]\n\n";
     std::cout << "Modes:\n";
     std::cout << "  sequential\n";
     std::cout << "  static\n";
@@ -16,9 +16,21 @@ static void print_usage() {
     std::cout << "  optimized\n\n";
     std::cout << "Examples:\n";
     std::cout << "  ./matmul sequential 512 1\n";
-    std::cout << "  ./matmul static 1024 4\n";
-    std::cout << "  ./matmul dynamic 1024 0\n";
-    std::cout << "  ./matmul optimized 1024 8\n";
+    std::cout << "  ./matmul static 1024 4 --csv\n";
+    std::cout << "  ./matmul dynamic 1024 0 --csv\n";
+    std::cout << "  ./matmul optimized 1024 8 --block-size 64 --csv\n";
+}
+
+static bool parse_positive_int(const char* text, int& value) {
+    char* end = nullptr;
+    long parsed = std::strtol(text, &end, 10);
+
+    if (end == text || *end != '\0' || parsed <= 0) {
+        return false;
+    }
+
+    value = static_cast<int>(parsed);
+    return true;
 }
 
 static void print_table_output(const std::string& mode,
@@ -48,7 +60,7 @@ static void print_csv_output(const std::string& mode,
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 4 && argc != 5) {
+    if (argc < 4) {
         print_usage();
         return 1;
     }
@@ -58,12 +70,27 @@ int main(int argc, char* argv[]) {
     int thread_count = std::atoi(argv[3]);
 
     bool csv_mode = false;
-    if (argc == 5) {
-        std::string output_mode = argv[4];
-        if (output_mode == "--csv") {
+    int block_size = 32;
+
+    for (int i = 4; i < argc; i++) {
+        std::string option = argv[i];
+
+        if (option == "--csv") {
             csv_mode = true;
+        } else if (option == "--block-size") {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --block-size requires a positive integer.\n";
+                return 1;
+            }
+
+            if (!parse_positive_int(argv[i + 1], block_size)) {
+                std::cerr << "Error: block size must be a positive integer.\n";
+                return 1;
+            }
+
+            i++;
         } else {
-            std::cerr << "Error: unknown option: " << output_mode << "\n";
+            std::cerr << "Error: unknown option: " << option << "\n";
             print_usage();
             return 1;
         }
@@ -98,7 +125,7 @@ int main(int argc, char* argv[]) {
     } else if (mode == "dynamic") {
         matmul_dynamic(A, B, C, actual_threads);
     } else if (mode == "optimized") {
-        matmul_optimized(A, B, C, thread_count);
+        matmul_optimized(A, B, C, thread_count, block_size);
     } else {
         std::cerr << "Error: unknown mode: " << mode << "\n";
         print_usage();
