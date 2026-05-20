@@ -1,23 +1,25 @@
 # Intelligent Parallel Scaling for High-Performance Workloads
 
-## Reproducing Build, Experiment, and Plot Results
+## Reproducing Build, Experiment, Plot, and Adaptive Policy Results
 
-This CS213 final project studies how thread count affects the performance of a shared-memory parallel workload. The main workload used in this project is dense matrix multiplication implemented in C++ with Pthreads.
+This CS213 final project studies how thread count affects the performance of a shared-memory parallel workload. The current workload is dense matrix multiplication implemented in C++ with Pthreads.
 
-The project compares several execution strategies:
+The original project goal is to compare fixed thread allocation with dynamic thread scaling and optimized parallel execution. The project evaluates how runtime, speedup, and efficiency change across different matrix sizes and thread counts.
+
+The current project includes four main execution modes:
 
 1. Sequential baseline
 2. Static Pthread execution
-3. Dynamic thread scaling
+3. Dynamic Pthread execution
 4. Optimized Pthread execution with cache blocking
 
-The goal is to evaluate whether dynamically adjusting the number of threads can improve performance compared to using a fixed thread count. The project measures runtime, correctness, speedup, and parallel efficiency.
+In addition, the project now includes an adaptive policy analysis step. This extra analysis uses measured performance results to choose a near-best configuration with fewer threads, helping detect the point before diminishing returns.
 
 ---
 
 ## 1. Build the Project
 
-First, compile the project from the repository root directory.
+Compile the project from the repository root directory:
 
 ```bash
 make clean
@@ -30,11 +32,13 @@ This creates the executable:
 matmul.exe
 ```
 
-On Linux or MSYS2-style terminals, the executable can be run as:
+Run the executable with:
 
 ```bash
 ./matmul
 ```
+
+---
 
 ## 2. Run Individual Tests
 
@@ -62,187 +66,232 @@ Example commands:
 ./matmul optimized 256 4
 ```
 
-The dynamic version uses 0 as the thread-count argument because the program chooses the thread count automatically based on the matrix size.
+The dynamic version uses 0 as the thread-count argument because the program chooses the thread count automatically.
 
-The program prints a table showing:
-
-- execution mode
-- matrix size
-- number of threads used
-- runtime in seconds
-- correctness result
-
-## 3. Run All Experiments
-
-To run the full experiment script:
+The program output shows:
 
 ```bash
-bash scripts/run_tests.sh
+Mode
+Matrix size
+Thread count
+Runtime
+Correctness
 ```
 
-This script runs the sequential, static, dynamic, and optimized versions across multiple matrix sizes and thread counts.
+For larger matrix sizes, correctness may be reported as skipped to avoid adding an expensive sequential verification run to every timing experiment.
 
-The result file is generated at:
+---
+
+## 3. Run Small Experiments
+
+For quick testing, run only matrix sizes up to 1024:
+
+```bash
+bash scripts/run_tests_small.sh
+```
+
+This creates:
+
+```bash
+results/results_small.csv
+```
+
+The small experiment script also copies the result to:
 
 ```bash
 results/results.csv
 ```
 
-The CSV file uses the following columns:
+so that the plotting scripts can use it directly.
+
+---
+
+## 4. Run Large Experiments
+
+For larger matrix sizes such as 1536 and 2048, run:
 
 ```bash
-mode,N,threads,time_sec,correct
+bash scripts/run_tests_large.sh
 ```
 
-This step produces the raw timing data used for later analysis.
+This creates:
 
-## 4. Generate Plots
+```bash
+results/results_large.csv
+```
 
-After generating `results/results.csv`, run:
+Large experiments take longer because matrix multiplication scales approximately with O(N^3) work.
+
+---
+
+## 5. Combine Small and Large Results
+
+After running both small and large experiments, combine them with:
+
+```bash
+bash scripts/combine_results.sh
+```
+
+This creates the combined result file:
+
+```bash
+results/results.csv
+```
+
+The CSV columns are:
+
+```bash
+mode,N,threads,trial,time_sec,correct
+```
+
+Each configuration is run multiple times, so the trial column records which repeated run produced the timing result.
+
+---
+
+## 6. Generate Summary Files and Plots
+
+After generating results/results.csv, run:
 
 ```bash
 python3 scripts/plot_results.py
 ```
 
-This creates the following plots:
+This creates summary CSV files:
 
 ```bash
-plots/runtime_vs_threads.png
-plots/speedup_vs_threads.png
-plots/efficiency_vs_threads.png
+results/summary_results.csv
+results/dynamic_vs_best_static.csv
+results/adaptive_policy.csv
 ```
 
-These plots are used to compare:
+It also creates plot folders:
 
-- runtime as thread count changes
-- speedup compared to the sequential baseline
-- parallel efficiency across different configurations
+```bash
+plots/average_runtime/
+plots/best_runtime/
+plots/speedup_from_avg/
+plots/efficiency_from_avg/
+plots/overall_average/
+```
+
+The four main metric folders contain plots for:
+
+```bash
+average runtime
+best runtime
+speedup from average runtime
+parallel efficiency from average runtime
+```
+
+The overall_average folder contains high-level comparison plots, including the adaptive policy results.
+
+---
+
+## 7. Adaptive Policy Analysis
+
+The adaptive policy analysis is an additional feature beyond the original proposal.
+
+The original dynamic version chooses thread count using a simple rule based on matrix size. The adaptive policy is different: it uses measured experiment results to choose a configuration based on observed performance.
+
+For each matrix size, the adaptive policy:
+
+1. Finds the fastest measured static or optimized configuration.
+2. Finds all configurations within 10% of that fastest runtime.
+3. Selects the lowest-thread configuration among those near-best candidates.
+
+This helps identify the point before diminishing returns. Instead of always choosing the fastest configuration, the adaptive policy may choose a slightly slower configuration if it uses fewer threads and remains close to the best runtime.
+
+To run adaptive policy analysis directly:
+
+```bash
+python3 scripts/analyze_policy.py
+```
+
+The normal plotting command also runs adaptive policy analysis automatically:
+
+```bash
+python3 scripts/plot_results.py
+```
+
+Adaptive policy outputs:
+
+```bash
+results/adaptive_policy.csv
+plots/overall_average/adaptive_policy_runtime.png
+plots/overall_average/adaptive_policy_threads.png
+```
+
+The adaptive policy CSV includes:
+
+```bash
+N
+best_mode
+best_threads
+best_avg_time
+selected_mode
+selected_threads
+selected_avg_time
+selected_slowdown_percent
+thread_savings_vs_best
+dynamic_threads
+dynamic_avg_time
+dynamic_slowdown_percent
+tolerance_percent
+reason
+```
+---
 
 ## Current Implementation
 
 ### Sequential Baseline
 
-The sequential version performs standard dense matrix multiplication using one thread. This version is used as the correctness reference and speedup baseline.
+The sequential version performs dense matrix multiplication using one thread. It is used as the correctness reference and speedup baseline.
 
 ### Static Pthread Version
 
-The static version uses a fixed number of Pthreads. Matrix rows are divided among threads before execution. This version is used to study how performance changes with different fixed thread counts.
+The static version uses a fixed number of Pthreads. Matrix rows are divided across threads before execution. This version is used to measure how performance changes as thread count increases.
 
 ### Dynamic Pthread Version
 
-The dynamic version selects the number of threads automatically based on matrix size. This follows the project idea of adapting thread count to workload conditions instead of using one fixed configuration for all inputs.
-
-Current thread-selection rule:
-
-```bash
-N <= 256   -> 1 thread
-N <= 512   -> 2 threads
-N <= 1024  -> 4 threads
-N > 1024   -> 8 threads
-```
-
-This version tests the project proposal idea that thread count should adapt to workload size instead of staying fixed for all inputs.
+The dynamic version automatically selects the number of threads based on matrix size. This represents the original proposal idea of adjusting thread count instead of using one fixed configuration for all workloads.
 
 ### Optimized Pthread Version
 
-The optimized version uses Pthreads with cache blocking. The goal is to improve data locality and reduce memory-access overhead compared to the basic static version.
+The optimized version uses Pthreads with cache blocking. The goal is to improve data locality and reduce memory-access overhead compared to the basic static implementation.
 
-## Next Focus
+### Adaptive Policy Analysis
 
-The next focus is improving the quality of the experimental evaluation before writing the final report.
+The adaptive policy analysis uses the measured static and optimized results to select a near-best configuration with fewer threads. This makes the project more useful because it studies both performance and resource usage.
 
-### 1. Run each test multiple times
+---
 
-The current experiment results are based on single runs. Runtime can fluctuate because of background programs, scheduling, and system load.
+## Workflow
 
-Next step:
-
-```bash
-Run each configuration 3 to 5 times.
-Report the average runtime.
-Optionally also keep the best runtime.
-```
-
-This will make the results more reliable and easier to defend in the report.
-
-### 2. Add larger matrix sizes
-
-The current tests mainly use smaller and medium matrix sizes, such as:
-
-```bash
-256
-512
-1024
-```
-
-The next useful size is:
-
-```bash
-2048
-```
-
-This matters because small inputs may not benefit much from parallelism. For small matrices, thread creation and scheduling overhead can dominate. Larger matrices should better show whether static, dynamic, and optimized execution actually scale.
-
-### 3. Improve the dynamic policy
-
-The current dynamic version uses a simple rule based only on matrix size.
-
-Current idea:
-
-```bash
-small N  -> fewer threads
-large N  -> more threads
-```
-
-Next, compare the dynamic choice against the best static result for each matrix size.
-
-Important question:
-
-```bash
-Did the dynamic version choose a thread count close to the best fixed-thread configuration?
-```
-
-### 4. Analyze the optimized version carefully
-
-The optimized version uses cache blocking, but it may not always be faster for small inputs.
-
-Things to check:
-
-```bash
-Does optimized beat static for larger N?
-Does blocking overhead hurt small N?
-Does the optimized version scale better as thread count increases?
-```
-
-This analysis is important because optimization results are not always perfect. The report should explain both improvements and limitations.
-
-### 5. Prepare report-ready results
-
-Before starting the final report, regenerate clean results and plots after the experiment changes.
-
-Recommended command sequence:
+For quick testing:
 
 ```bash
 make clean
 make
-bash scripts/run_tests.sh
+bash scripts/run_tests_small.sh
 python3 scripts/plot_results.py
-git status
 ```
 
-After that, the report can use:
+For full final results:
 
 ```bash
-results/results.csv
-plots/runtime_vs_threads.png
-plots/speedup_vs_threads.png
-plots/efficiency_vs_threads.png
+make clean
+make
+bash scripts/run_tests_small.sh
+bash scripts/run_tests_large.sh
+bash scripts/combine_results.sh
+python3 scripts/plot_results.py
 ```
+
+---
 
 ## Notes
 
-- This project was tested using MSYS2 UCRT64 on Windows.
 - The project uses Pthreads for shared-memory parallel programming.
-- Runtime results may fluctuate between runs.
-- The final report should focus on explaining the trade-off between thread count, overhead, speedup, and efficiency.
-
+- Runtime results may fluctuate between runs due to scheduling, system load, and background processes.
+- The experiment scripts run each configuration multiple times to support average and best runtime analysis.
+- The final report should focus on thread scaling, runtime overhead, speedup, efficiency, and diminishing returns.
