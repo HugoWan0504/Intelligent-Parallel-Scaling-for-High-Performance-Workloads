@@ -12,11 +12,9 @@ static int choose_thread_count(int n) {
 
     int selected_threads;
 
-    if (n <= 256) {
+    if (n <= 128) {
         selected_threads = 1;
-    } else if (n <= 512) {
-        selected_threads = 2;
-    } else if (n <= 1024) {
+    } else if (n <= 256) {
         selected_threads = 4;
     } else {
         selected_threads = 8;
