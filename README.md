@@ -295,3 +295,94 @@ python3 scripts/plot_results.py
 - Runtime results may fluctuate between runs due to scheduling, system load, and background processes.
 - The experiment scripts run each configuration multiple times to support average and best runtime analysis.
 - The final report should focus on thread scaling, runtime overhead, speedup, efficiency, and diminishing returns.
+
+---
+
+## Search-Based Auto-Tuning and Saturation Analysis
+
+This extension adds a deeper tuning layer on top of the original static, dynamic, and optimized comparisons. Instead of only plotting manually selected thread counts, the new saturation workflow automatically tests candidate configurations and marks where runtime improvement begins to flatten.
+
+The main script is:
+
+```bash
+python3 scripts/auto_tune_saturation.py
+```
+
+A simpler wrapper is also provided:
+
+```bash
+bash scripts/run_saturation.sh
+```
+
+The default wrapper tests:
+
+```bash
+sizes:       256, 512, 1024
+threads:     1, 2, 4, 8, 16
+block sizes: 8, 16, 32, 64, 128
+trials:      3
+threshold:   5% improvement
+```
+
+The saturation rule is based on the runtime improvement between two neighboring configurations:
+
+```bash
+improvement = (previous_time - current_time) / previous_time
+```
+
+If adding more threads improves runtime by less than the threshold, the curve is treated as saturated around the previous useful configuration. This lets the project report both the fastest configuration and the lower-cost configuration before diminishing returns.
+
+---
+
+## Supported Search Heuristics
+
+| Heuristic                  | Purpose                                                                   |
+| -------------------------- | ------------------------------------------------------------------------- |
+| Linear thread sweep        | Tests all thread counts and acts as the reliable baseline.                |
+| Binary saturation search   | Uses a binary-style heuristic to reduce the number of thread-count tests. |
+| Hill-climbing block search | Tunes the optimized matrix multiplication block/tile size.                |
+| -------------------------- | ------------------------------------------------------------------------- |
+
+The generated outputs are:
+
+```bash
+results/saturation_results.csv
+results/saturation_summary.csv
+plots/saturation/thread_saturation_N*.png
+plots/saturation/block_saturation_N*.png
+plots/saturation/search_cost_comparison.png
+```
+
+Example custom run:
+
+```bash
+python3 scripts/auto_tune_saturation.py \
+    --sizes 256,512,1024,2048 \
+    --threads 1,2,4,8,16,32 \
+    --blocks 8,16,32,64,128,256 \
+    --trials 3 \
+    --threshold 0.05
+```
+
+The optimized executable now also supports a configurable block size:
+
+```bash
+./matmul optimized 1024 8 --block-size 64 --csv
+```
+
+This makes the project less hardcoded and more like a practical auto-tuning benchmark. The final report can use this section to discuss runtime saturation, diminishing returns, search cost, and the trade-off between best runtime and resource-efficient thread selection.
+
+
+After replacing/adding these files, run:
+
+```bash
+make clean
+make
+bash scripts/run_saturation.sh
+```
+
+The main new output folder should be:
+
+```bash
+plots/saturation/
+```
