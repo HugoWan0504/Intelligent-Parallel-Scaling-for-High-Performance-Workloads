@@ -16,6 +16,7 @@ from plot_make import (
     plot_best_approach_comparison,
     plot_overall_average_comparison
 )
+from analyze_policy import run_adaptive_policy_analysis
 
 
 def main():
@@ -70,6 +71,8 @@ def main():
             f"Overall Average {title}",
             os.path.join(overall_dir, f"{metric}_overall_average.png")
         )
+
+    run_adaptive_policy_analysis()
 
     print("All plots generated.")
     print("Plot folders:")

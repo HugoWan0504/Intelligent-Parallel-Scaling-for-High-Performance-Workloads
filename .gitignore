@@ -5,18 +5,9 @@ matmul.exe
 *.out
 *.exe
 
-# Results / generated files
-# results/*.csv
-# plots/*.png
-
-# LaTeX build files
-*.aux
-*.log
-*.out
-*.toc
-*.synctex.gz
-*.fls
-*.fdb_latexmk
+# Python cache
+__pycache__/
+*.pyc
 
 # OS / editor files
 .DS_Store

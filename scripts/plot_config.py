@@ -1,7 +1,14 @@
 RESULTS_FILE = "results/results.csv"
 SUMMARY_FILE = "results/summary_results.csv"
 BEST_COMPARISON_FILE = "results/dynamic_vs_best_static.csv"
+ADAPTIVE_POLICY_FILE = "results/adaptive_policy.csv"
+
 PLOTS_DIR = "plots"
+
+# Near-best threshold for adaptive policy.
+# 0.10 means a configuration is considered near-best if it is within 10%
+# of the fastest measured runtime.
+NEAR_BEST_TOLERANCE = 0.10
 
 
 METRIC_CONFIGS = [
