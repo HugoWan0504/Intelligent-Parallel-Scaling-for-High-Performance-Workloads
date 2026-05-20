@@ -26,19 +26,13 @@ static void print_table_output(const std::string& mode,
                                int threads,
                                double runtime,
                                const std::string& correct) {
-    std::cout << "\n";
-    std::cout << "+------------+--------+---------+-------------+---------+\n";
-    std::cout << "| Mode       | N      | Threads | Time (sec)  | Correct |\n";
-    std::cout << "+------------+--------+---------+-------------+---------+\n";
+    (void)mode;
+    (void)n;
+    (void)threads;
+    (void)correct;
 
-    std::cout << "| "
-              << std::left << std::setw(10) << mode << " | "
-              << std::right << std::setw(6) << n << " | "
-              << std::right << std::setw(7) << threads << " | "
-              << std::right << std::setw(11) << std::fixed << std::setprecision(3) << runtime << " | "
-              << std::left << std::setw(7) << correct << " |\n";
-
-    std::cout << "+------------+--------+---------+-------------+---------+\n";
+    std::cout << std::fixed << std::setprecision(3)
+              << runtime << " sec\n";
 }
 
 static void print_csv_output(const std::string& mode,
