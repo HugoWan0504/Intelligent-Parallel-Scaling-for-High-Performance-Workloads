@@ -1,0 +1,23 @@
+# Build outputs
+matmul
+*.o
+*.out
+*.exe
+
+# Results / generated files
+# results/*.csv
+# plots/*.png
+
+# LaTeX build files
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+
+# OS / editor files
+.DS_Store
+.vscode/
+.idea/

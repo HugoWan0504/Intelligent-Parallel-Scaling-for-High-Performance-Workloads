@@ -1,5 +1,10 @@
-# Intelligent-Parallel-Scaling-for-High-Performance-Workloads
-CS213 Project
+# Intelligent Parallel Scaling for High-Performance Workloads
 
-# Project Proposal Document Link:
-https://docs.google.com/document/d/1DavPkaQPpTTDAAKI7a71-w_0jwjKIeRweLFzScttCBs/edit?tab=t.0#heading=h.atxm0zp807um
+This project studies how thread count affects the performance of a shared-memory parallel workload. The main workload is dense matrix multiplication.
+
+The project compares four implementations:
+
+1. Sequential baseline
+2. Static Pthread version
+3. Dynamic Pthread version
+4. Optimized Pthread version with cache blocking
