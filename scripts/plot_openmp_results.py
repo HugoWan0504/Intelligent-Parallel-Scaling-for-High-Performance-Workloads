@@ -5,25 +5,22 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 import matplotlib
-
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+# Fixed colors for consistent labeling
+LABEL_COLORS = {
+    "sequential": "black",
+    "static": "tab:blue",
+    "optimized": "tab:orange",
+    "dynamic_performance": "tab:green",
+    "dynamic_efficiency": "tab:red",
+}
 
 def result_label(row):
-    mode = row["mode"]
-
-    if mode == "sequential":
-        return "sequential"
-    if mode == "static":
-        return "static"
-    if mode == "optimized":
-        return "optimized"
-    if mode == "dynamic":
+    if row["mode"] == "dynamic":
         return f"dynamic_{row['goal']}"
-
-    return mode
-
+    return row["mode"]
 
 def read_summary(input_path):
     grouped = defaultdict(
@@ -43,10 +40,7 @@ def read_summary(input_path):
             n = int(row["N"])
             threads = int(row["threads"])
 
-            if row["mode"] == "dynamic":
-                key = (label, n, 0)
-            else:
-                key = (label, n, threads)
+            key = (label, n, 0) if label.startswith("dynamic_") else (label, n, threads)
 
             grouped[key]["count"] += 1
             grouped[key]["time"] += float(row["time_sec"])
@@ -59,25 +53,21 @@ def read_summary(input_path):
         count = values["count"]
         selected_threads = values["selected_threads"].most_common(1)[0][0]
 
-        summary.append(
-            {
-                "label": label,
-                "N": n,
-                "threads": threads,
-                "selected_threads": selected_threads,
-                "is_dynamic": label.startswith("dynamic_"),
-                "avg_time_sec": values["time"] / count,
-                "avg_speedup": values["speedup"] / count,
-                "avg_efficiency": values["efficiency"] / count,
-            }
-        )
+        summary.append({
+            "label": label,
+            "N": n,
+            "threads": threads,
+            "selected_threads": selected_threads,
+            "is_dynamic": label.startswith("dynamic_"),
+            "avg_time_sec": values["time"] / count,
+            "avg_speedup": values["speedup"] / count,
+            "avg_efficiency": values["efficiency"] / count,
+        })
 
     return sorted(summary, key=lambda item: (item["N"], item["label"], item["threads"]))
 
-
 def write_summary(summary, output_path):
     output_path.parent.mkdir(parents=True, exist_ok=True)
-
     with output_path.open("w", newline="") as csv_file:
         fieldnames = [
             "label",
@@ -93,8 +83,8 @@ def write_summary(summary, output_path):
         writer.writeheader()
         writer.writerows(summary)
 
-
 def plot_metric(rows, n, metric, title, ylabel, output_path):
+    from collections import defaultdict
     by_label = defaultdict(list)
     for row in rows:
         by_label[row["label"]].append(row)
@@ -102,16 +92,15 @@ def plot_metric(rows, n, metric, title, ylabel, output_path):
     fig, ax = plt.subplots(figsize=(10.5, 6.2), dpi=150)
     fixed_threads = sorted({row["threads"] for row in rows if not row["is_dynamic"]})
 
-    if fixed_threads:
-        x_min = fixed_threads[0]
-        x_max = fixed_threads[-1]
-    else:
-        selected = sorted({row["selected_threads"] for row in rows})
-        x_min = selected[0]
-        x_max = selected[-1]
+    x_min, x_max = (fixed_threads[0], fixed_threads[-1]) if fixed_threads else (
+        min(row["selected_threads"] for row in rows),
+        max(row["selected_threads"] for row in rows),
+    )
 
     for label in sorted(by_label):
         label_rows = sorted(by_label[label], key=lambda item: item["threads"])
+        color = LABEL_COLORS.get(label, "tab:gray")
+
         if label_rows[0]["is_dynamic"]:
             row = label_rows[0]
             ax.hlines(
@@ -120,27 +109,36 @@ def plot_metric(rows, n, metric, title, ylabel, output_path):
                 x_max,
                 linewidth=2.4,
                 linestyles="--",
+                color=color,
                 label=f"{label} (selected {row['selected_threads']}t)",
             )
         else:
             x_values = [row["threads"] for row in label_rows]
             y_values = [row[metric] for row in label_rows]
-            ax.plot(x_values, y_values, marker="o", linewidth=2.0, markersize=4.5, label=label)
+            ax.plot(
+                x_values,
+                y_values,
+                marker="o",
+                linewidth=2.0,
+                markersize=4.5,
+                color=color,
+                label=label,
+            )
 
     ax.set_title(f"{title} for N={n}")
     ax.set_xlabel("Threads")
     ax.set_ylabel(ylabel)
-    ax.set_xticks(fixed_threads)
+    if fixed_threads:
+        ax.set_xticks(fixed_threads)
     ax.grid(True, alpha=0.25)
     ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False)
     fig.tight_layout()
     fig.savefig(output_path)
     plt.close(fig)
 
-
 def main():
     parser = argparse.ArgumentParser(description="Plot OpenMP scaling benchmark results with matplotlib.")
-    parser.add_argument("--input", default="results/openmp_scaling.csv", help="Benchmark CSV produced by run_openmp_benchmarks.sh")
+    parser.add_argument("--input", default="results/openmp_scaling.csv", help="Benchmark CSV")
     parser.add_argument("--summary", default="results/openmp_scaling_summary.csv", help="Aggregated summary CSV")
     parser.add_argument("--out-dir", default="plots/openmp_scaling", help="Directory for generated plots")
     parser.add_argument("--format", default="png", choices=["png", "svg", "pdf"], help="Plot file format")
@@ -151,7 +149,7 @@ def main():
     out_dir = Path(args.out_dir)
 
     if not input_path.exists():
-        raise SystemExit(f"Missing {input_path}. Run scripts/run_openmp_benchmarks.sh first.")
+        raise SystemExit(f"Missing {input_path}. Run benchmark scripts first.")
 
     out_dir.mkdir(parents=True, exist_ok=True)
     summary = read_summary(input_path)
@@ -165,14 +163,13 @@ def main():
 
     sizes = sorted({row["N"] for row in summary})
     for n in sizes:
-        rows = [row for row in summary if row["N"] == n]
+        rows_n = [row for row in summary if row["N"] == n]
         for metric, title, ylabel, prefix in plots:
             output_path = out_dir / f"{prefix}_N{n}.{args.format}"
-            plot_metric(rows, n, metric, title, ylabel, output_path)
+            plot_metric(rows_n, n, metric, title, ylabel, output_path)
             print(f"Wrote {output_path}")
 
     print(f"Wrote {summary_path}")
-
 
 if __name__ == "__main__":
     main()

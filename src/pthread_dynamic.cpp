@@ -26,7 +26,7 @@ static int effective_max_threads(int n, const DynamicTuningConfig& config) {
 static std::vector<int> candidate_thread_counts(int max_threads) {
     std::vector<int> candidates;
 
-    for (int threads = 1; threads <= max_threads; threads *= 2) {
+    for (int threads = 1; threads <= max_threads; threads++) {
         candidates.push_back(threads);
     }
 
