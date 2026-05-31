@@ -15,6 +15,20 @@ struct Matrix {
     const double& operator()(int row, int col) const;
 };
 
+enum class TuningGoal {
+    Performance,
+    Efficiency
+};
+
+struct DynamicTuningConfig {
+    TuningGoal goal = TuningGoal::Performance;
+    int max_threads = 0;
+    int sample_size = 512;
+    int trials = 3;
+    double efficiency_tolerance = 0.25;
+    int block_size = 32;
+};
+
 Matrix create_matrix(int n);
 void fill_matrix(Matrix& mat);
 void zero_matrix(Matrix& mat);
@@ -22,7 +36,8 @@ bool compare_matrices(const Matrix& a, const Matrix& b, double eps = 1e-6);
 
 void matmul_sequential(const Matrix& A, const Matrix& B, Matrix& C);
 void matmul_static(const Matrix& A, const Matrix& B, Matrix& C, int thread_count);
-void matmul_dynamic(const Matrix& A, const Matrix& B, Matrix& C, int& selected_threads);
+int tune_dynamic_thread_count(const Matrix& A, const Matrix& B, const DynamicTuningConfig& config = DynamicTuningConfig());
+void matmul_dynamic(const Matrix& A, const Matrix& B, Matrix& C, int& selected_threads, const DynamicTuningConfig& config = DynamicTuningConfig());
 void matmul_optimized(const Matrix& A, const Matrix& B, Matrix& C, int thread_count, int block_size = 32);
 
 #endif
