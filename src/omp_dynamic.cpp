@@ -26,8 +26,11 @@ static int effective_max_threads(int n, const DynamicTuningConfig& config) {
 static std::vector<int> candidate_thread_counts(int max_threads) {
     std::vector<int> candidates;
 
-    for (int threads = 1; threads <= max_threads; threads++) {
-        candidates.push_back(threads);
+    int t = 1;
+    while (t <= max_threads) {
+        candidates.push_back(t);
+        if (t > max_threads / 2) break; // avoid overflow
+        t *= 2;
     }
 
     if (candidates.empty() || candidates.back() != max_threads) {
@@ -50,13 +53,25 @@ static CandidateResult benchmark_candidate(const Matrix& A,
                                            int block_size,
                                            int trials,
                                            double serial_time) {
-    double total_time = 0.0;
+    std::vector<double> times;
+    times.reserve(trials);
 
     for (int trial = 0; trial < trials; trial++) {
-        total_time += timed_sample_run(A, B, C, threads, block_size);
+        times.push_back(timed_sample_run(A, B, C, threads, block_size));
     }
 
-    double average_time = total_time / static_cast<double>(trials);
+    std::sort(times.begin(), times.end());
+
+    double average_time = 0.0;
+    if (static_cast<int>(times.size()) <= 2) {
+        for (double t : times) average_time += t;
+        average_time /= static_cast<double>(times.size());
+    } else {
+        // discard best and worst to reduce outlier effects
+        for (size_t i = 1; i + 1 < times.size(); ++i) average_time += times[i];
+        average_time /= static_cast<double>(times.size() - 2);
+    }
+
     double speedup = serial_time / average_time;
     double efficiency = speedup / static_cast<double>(threads);
 
@@ -85,14 +100,57 @@ int tune_dynamic_thread_count(const Matrix& A, const Matrix& B, const DynamicTun
     std::vector<CandidateResult> candidates;
     candidates.reserve(thread_counts.size());
 
+    const CandidateResult* best_runtime = nullptr;
+    double best_time_so_far = std::numeric_limits<double>::infinity();
+    int worsening_count = 0;
+    const int worsening_limit = 2; // stop after 2 worsening candidates
+    const double worsening_tol = 0.005; // 0.5% allowed noise
+
     for (int threads : thread_counts) {
-        candidates.push_back(benchmark_candidate(sample_a, sample_b, sample_c, threads, block_size, trials, serial_time));
+        CandidateResult res = benchmark_candidate(sample_a, sample_b, sample_c, threads, block_size, trials, serial_time);
+        candidates.push_back(res);
+
+        if (res.best_time + 1e-12 < best_time_so_far) {
+            best_time_so_far = res.best_time;
+            best_runtime = &candidates.back();
+            worsening_count = 0;
+        } else {
+            if (res.best_time > best_time_so_far * (1.0 + worsening_tol)) {
+                ++worsening_count;
+            } else {
+                // within noise, reset
+                worsening_count = 0;
+            }
+        }
+
+        if (worsening_count >= worsening_limit) {
+            break; // early stop: further exponential increases are worsening
+        }
     }
 
-    const CandidateResult* best_runtime = &candidates.front();
-    for (const CandidateResult& candidate : candidates) {
-        if (candidate.best_time < best_runtime->best_time) {
-            best_runtime = &candidate;
+    if (best_runtime == nullptr && !candidates.empty()) {
+        best_runtime = &candidates.front();
+    }
+
+    // local refinement: try neighbors around best (best-1, best+1)
+    if (best_runtime != nullptr) {
+        int best_threads = best_runtime->threads;
+        std::vector<int> refine;
+        if (best_threads > 1) refine.push_back(best_threads - 1);
+        if (best_threads + 1 <= max_threads) refine.push_back(best_threads + 1);
+
+        for (int t : refine) {
+            bool already = false;
+            for (const CandidateResult& c : candidates) if (c.threads == t) { already = true; break; }
+            if (already) continue;
+            candidates.push_back(benchmark_candidate(sample_a, sample_b, sample_c, t, block_size, trials, serial_time));
+        }
+
+        // recompute best_runtime
+        for (const CandidateResult& candidate : candidates) {
+            if (candidate.best_time < best_runtime->best_time) {
+                best_runtime = &candidate;
+            }
         }
     }
 
@@ -100,11 +158,17 @@ int tune_dynamic_thread_count(const Matrix& A, const Matrix& B, const DynamicTun
         return best_runtime->threads;
     }
 
-    double allowed_time = best_runtime->best_time * (1.0 + std::max(0.0, config.efficiency_tolerance));
+    // Select by efficiency: require at least 80% of the best observed efficiency
+    double max_efficiency = 0.0;
+    for (const CandidateResult& c : candidates) {
+        if (c.efficiency > max_efficiency) max_efficiency = c.efficiency;
+    }
+
+    double min_efficiency = 0.8 * max_efficiency;
     const CandidateResult* selected = nullptr;
 
     for (const CandidateResult& candidate : candidates) {
-        if (candidate.best_time > allowed_time) {
+        if (candidate.efficiency + 1e-12 < min_efficiency) {
             continue;
         }
 

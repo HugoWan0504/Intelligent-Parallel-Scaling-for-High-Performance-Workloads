@@ -6,9 +6,9 @@ TARGET = matmul
 SRC = src/main.cpp \
       src/matrix.cpp \
       src/sequential.cpp \
-      src/pthread_static.cpp \
-      src/pthread_dynamic.cpp \
-      src/pthread_optimized.cpp
+      src/omp_static.cpp \
+      src/omp_dynamic.cpp \
+      src/omp_optimized.cpp
 
 all: $(TARGET)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SIZES="${SIZES:-512 1024 2048}"
+SIZES="${SIZES:-512}"
 THREADS="${THREADS:-1 2 4 8 16}"
 TRIALS="${TRIALS:-10}"
 BLOCK_SIZE="${BLOCK_SIZE:-32}"
