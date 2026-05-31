@@ -1,6 +1,0 @@
-N,dynamic_threads,dynamic_avg_time,best_static_threads,best_static_avg_time,best_optimized_threads,best_optimized_avg_time
-256,4,0.005,8,0.004,8,0.005
-512,8,0.024,8,0.024,8,0.027
-1024,8,0.174,8,0.177,8,0.183
-1536,8,0.652,8,0.663,8,0.691
-2048,8,1.614,8,1.671,8,1.715

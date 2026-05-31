@@ -3,6 +3,7 @@ import argparse
 import csv
 from collections import Counter, defaultdict
 from pathlib import Path
+from statistics import mean, stdev
 
 import matplotlib
 matplotlib.use("Agg")
@@ -25,10 +26,9 @@ def result_label(row):
 def read_summary(input_path):
     grouped = defaultdict(
         lambda: {
-            "count": 0,
-            "time": 0.0,
-            "speedup": 0.0,
-            "efficiency": 0.0,
+            "times": [],
+            "speedups": [],
+            "efficiencies": [],
             "selected_threads": Counter(),
         }
     )
@@ -42,16 +42,18 @@ def read_summary(input_path):
 
             key = (label, n, 0) if label.startswith("dynamic_") else (label, n, threads)
 
-            grouped[key]["count"] += 1
-            grouped[key]["time"] += float(row["time_sec"])
-            grouped[key]["speedup"] += float(row["speedup"])
-            grouped[key]["efficiency"] += float(row["efficiency"])
+            grouped[key]["times"].append(float(row["time_sec"]))
+            grouped[key]["speedups"].append(float(row["speedup"]))
+            grouped[key]["efficiencies"].append(float(row["efficiency"]))
             grouped[key]["selected_threads"][threads] += 1
 
     summary = []
     for (label, n, threads), values in grouped.items():
-        count = values["count"]
         selected_threads = values["selected_threads"].most_common(1)[0][0]
+
+        times = values["times"]
+        speedups = values["speedups"]
+        efficiencies = values["efficiencies"]
 
         summary.append({
             "label": label,
@@ -59,9 +61,15 @@ def read_summary(input_path):
             "threads": threads,
             "selected_threads": selected_threads,
             "is_dynamic": label.startswith("dynamic_"),
-            "avg_time_sec": values["time"] / count,
-            "avg_speedup": values["speedup"] / count,
-            "avg_efficiency": values["efficiency"] / count,
+
+            "avg_time_sec": mean(times),
+            "std_time_sec": stdev(times) if len(times) > 1 else 0.0,
+
+            "avg_speedup": mean(speedups),
+            "std_speedup": stdev(speedups) if len(speedups) > 1 else 0.0,
+
+            "avg_efficiency": mean(efficiencies),
+            "std_efficiency": stdev(efficiencies) if len(efficiencies) > 1 else 0.0,
         })
 
     return sorted(summary, key=lambda item: (item["N"], item["label"], item["threads"]))
@@ -76,14 +84,17 @@ def write_summary(summary, output_path):
             "selected_threads",
             "is_dynamic",
             "avg_time_sec",
+            "std_time_sec",
             "avg_speedup",
+            "std_speedup",
             "avg_efficiency",
+            "std_efficiency",
         ]
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(summary)
 
-def plot_metric(rows, n, metric, title, ylabel, output_path):
+def plot_metric(rows, n, metric, std_metric, title, ylabel, output_path):
     from collections import defaultdict
     by_label = defaultdict(list)
     for row in rows:
@@ -102,25 +113,30 @@ def plot_metric(rows, n, metric, title, ylabel, output_path):
         color = LABEL_COLORS.get(label, "tab:gray")
 
         if label_rows[0]["is_dynamic"]:
-            row = label_rows[0]
-            ax.hlines(
-                row[metric],
-                x_min,
-                x_max,
-                linewidth=2.4,
-                linestyles="--",
-                color=color,
-                label=f"{label} (selected {row['selected_threads']}t)",
-            )
+            # Dynamic mode → plot as points with error bars
+            for row in label_rows:
+                ax.errorbar(
+                    row["selected_threads"],
+                    row[metric],
+                    yerr=row[std_metric],
+                    fmt="D",
+                    markersize=6,
+                    capsize=4,
+                    color=color,
+                    label=f"{label} ({row['selected_threads']}t)" if row == label_rows[0] else None,
+                )
         else:
             x_values = [row["threads"] for row in label_rows]
             y_values = [row[metric] for row in label_rows]
-            ax.plot(
+            y_errors = [row[std_metric] for row in label_rows]
+            ax.errorbar(
                 x_values,
                 y_values,
+                yerr=y_errors,
                 marker="o",
                 linewidth=2.0,
-                markersize=4.5,
+                markersize=5,
+                capsize=4,
                 color=color,
                 label=label,
             )
@@ -156,17 +172,18 @@ def main():
     write_summary(summary, summary_path)
 
     plots = [
-        ("avg_time_sec", "Average Runtime", "Seconds", "runtime"),
-        ("avg_speedup", "Average Speedup", "T_serial / T_parallel", "speedup"),
-        ("avg_efficiency", "Average Efficiency", "Speedup / threads", "efficiency"),
+        ("avg_time_sec", "std_time_sec", "Average Runtime", "Seconds"),
+        ("avg_speedup", "std_speedup", "Average Speedup", "T_serial / T_parallel"),
+        ("avg_efficiency", "std_efficiency", "Average Efficiency", "Speedup / threads"),
     ]
 
     sizes = sorted({row["N"] for row in summary})
     for n in sizes:
         rows_n = [row for row in summary if row["N"] == n]
-        for metric, title, ylabel, prefix in plots:
+        for metric, std_metric, title, ylabel in plots:
+            prefix = metric.split("_")[1]  # runtime, speedup, efficiency
             output_path = out_dir / f"{prefix}_N{n}.{args.format}"
-            plot_metric(rows_n, n, metric, title, ylabel, output_path)
+            plot_metric(rows_n, n, metric, std_metric, title, ylabel, output_path)
             print(f"Wrote {output_path}")
 
     print(f"Wrote {summary_path}")

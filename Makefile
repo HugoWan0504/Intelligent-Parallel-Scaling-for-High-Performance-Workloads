@@ -16,4 +16,4 @@ $(TARGET): $(SRC)
 	$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET)
 
 clean:
-	rm -f $(TARGET) *.o
+	rm -rf $(TARGET) *.o plots

@@ -1,6 +1,0 @@
-N,best_mode,best_threads,best_avg_time,selected_mode,selected_threads,selected_avg_time,selected_slowdown_percent,thread_savings_vs_best,dynamic_threads,dynamic_avg_time,dynamic_slowdown_percent,tolerance_percent,reason
-256,static,8,0.004,static,8,0.004,0.000,0,4,0.005,25.000,10.0,lowest-thread configuration within near-best runtime threshold
-512,static,8,0.024,static,8,0.024,0.000,0,8,0.024,0.000,10.0,lowest-thread configuration within near-best runtime threshold
-1024,static,8,0.177,static,8,0.177,0.000,0,8,0.174,-1.695,10.0,lowest-thread configuration within near-best runtime threshold
-1536,static,8,0.663,static,8,0.663,0.000,0,8,0.652,-1.659,10.0,lowest-thread configuration within near-best runtime threshold
-2048,static,8,1.671,static,8,1.671,0.000,0,8,1.614,-3.411,10.0,lowest-thread configuration within near-best runtime threshold
