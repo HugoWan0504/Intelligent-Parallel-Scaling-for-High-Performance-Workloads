@@ -2,6 +2,14 @@
 
 This project studies automatic thread-count selection for dense matrix multiplication. The kernels now use OpenMP so the fixed-thread and tuned-thread implementations are compared with the same parallel runtime.
 
+## Layout
+
+- `include/` — public header files for the generic tuner and matrix utility interfaces.
+- `src/` — implementation files and the program entry point.
+- `scripts/` — benchmark and plotting helpers.
+- `results/` — benchmark CSV outputs.
+- `plots/` — generated plot files.
+
 ## Build
 
 ```bash
@@ -12,13 +20,13 @@ make
 This creates:
 
 ```bash
-./matmul
+./autotuner
 ```
 
 ## Execution Modes
 
 ```bash
-./matmul <mode> <matrix_size> <thread_count> [--csv] [options]
+./autotuner <mode> <size> <thread_count> [--csv] [options]
 ```
 
 Modes:
@@ -44,11 +52,12 @@ Useful options:
 Examples:
 
 ```bash
-./matmul sequential 512 1
-./matmul static 512 4
-./matmul optimized 512 4 --block-size 32
-./matmul dynamic 512 0 --tune-goal performance
-./matmul dynamic 512 0 --tune-goal efficiency --efficiency-tolerance 0.25
+./autotuner sequential 512 1
+./autotuner static 512 4
+./autotuner optimized 512 4 --block-size 32
+./autotuner dynamic 512 0 --tune-goal performance
+./autotuner dynamic 512 0 --tune-goal efficiency --efficiency-tolerance 0.25
+./autotuner dynamic 5 0 --workload password --charset abcdef --password-target abcde
 ```
 
 For `dynamic`, the positional thread count may be `0`. Use `--max-threads` to cap the tuner search space, or pass a positive positional thread count as the cap.
@@ -79,6 +88,18 @@ Run the default benchmark:
 
 ```bash
 scripts/run_openmp_benchmarks.sh
+```
+
+Run the password search workload benchmark:
+
+```bash
+scripts/run_password_crack.sh
+```
+
+Plot the password cracking results:
+
+```bash
+scripts/plot_password_crack_results.sh
 ```
 
 This writes:

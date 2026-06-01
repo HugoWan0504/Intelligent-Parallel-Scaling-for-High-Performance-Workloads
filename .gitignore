@@ -1,5 +1,7 @@
 # Build outputs
+autotuner
 matmul
+autotuner.exe
 matmul.exe
 *.o
 *.out

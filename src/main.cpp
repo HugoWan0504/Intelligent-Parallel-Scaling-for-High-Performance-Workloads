@@ -1,4 +1,6 @@
+#include "dynamic_tuner.h"
 #include "matrix.h"
+#include "password_search_workload.h"
 #include "timer.h"
 
 #include <algorithm>
@@ -9,7 +11,7 @@
 
 static void print_usage() {
     std::cout << "Usage:\n";
-    std::cout << "  ./matmul <mode> <matrix_size> <thread_count> [--csv] [options]\n\n";
+    std::cout << "  ./autotuner <mode> <size> <thread_count> [--csv] [options]\n\n";
     std::cout << "Modes:\n";
     std::cout << "  sequential\n";
     std::cout << "  static      OpenMP with a fixed thread count\n";
@@ -17,6 +19,9 @@ static void print_usage() {
     std::cout << "  optimized   OpenMP with a fixed thread count and cache blocking\n\n";
     std::cout << "Options:\n";
     std::cout << "  --csv\n";
+    std::cout << "  --workload matrix|password\n";
+    std::cout << "  --charset STRING\n";
+    std::cout << "  --password-target STRING\n";
     std::cout << "  --block-size B\n";
     std::cout << "  --tune-goal performance|efficiency\n";
     std::cout << "  --tune-sample-size N\n";
@@ -24,10 +29,11 @@ static void print_usage() {
     std::cout << "  --max-threads N\n";
     std::cout << "  --efficiency-tolerance F\n\n";
     std::cout << "Examples:\n";
-    std::cout << "  ./matmul sequential 512 1\n";
-    std::cout << "  ./matmul static 1024 4 --csv\n";
-    std::cout << "  ./matmul dynamic 1024 0 --csv --tune-goal efficiency\n";
-    std::cout << "  ./matmul optimized 1024 8 --block-size 64 --csv\n";
+    std::cout << "  ./autotuner sequential 512 1\n";
+    std::cout << "  ./autotuner static 1024 4 --csv\n";
+    std::cout << "  ./autotuner dynamic 1024 0 --csv --tune-goal efficiency\n";
+    std::cout << "  ./autotuner optimized 1024 8 --block-size 64 --csv\n";
+    std::cout << "  ./autotuner dynamic 5 0 --workload password --charset abcdef --password-target fffff\n";
 }
 
 static bool parse_positive_int(const char* text, int& value) {
@@ -89,6 +95,9 @@ int main(int argc, char* argv[]) {
     int thread_count = std::atoi(argv[3]);
 
     bool csv_mode = false;
+    std::string workload_type = "matrix";
+    std::string charset = "abcdefghijklmnopqrstuvwxyz";
+    std::string password_target;
     int block_size = 32;
     DynamicTuningConfig tuning_config;
 
@@ -149,6 +158,31 @@ int main(int argc, char* argv[]) {
             }
 
             i++;
+        } else if (option == "--workload") {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --workload requires matrix or password.\n";
+                return 1;
+            }
+            workload_type = argv[i + 1];
+            if (workload_type != "matrix" && workload_type != "password") {
+                std::cerr << "Error: --workload must be matrix or password.\n";
+                return 1;
+            }
+            i++;
+        } else if (option == "--charset") {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --charset requires a string.\n";
+                return 1;
+            }
+            charset = argv[i + 1];
+            i++;
+        } else if (option == "--password-target") {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --password-target requires a string.\n";
+                return 1;
+            }
+            password_target = argv[i + 1];
+            i++;
         } else {
             std::cerr << "Error: unknown option: " << option << "\n";
             print_usage();
@@ -157,7 +191,7 @@ int main(int argc, char* argv[]) {
     }
 
     if (n <= 0) {
-        std::cerr << "Error: matrix_size must be positive.\n";
+        std::cerr << "Error: size must be positive.\n";
         return 1;
     }
 
@@ -172,59 +206,103 @@ int main(int argc, char* argv[]) {
 
     tuning_config.block_size = block_size;
 
-    Matrix A = create_matrix(n);
-    Matrix B = create_matrix(n);
-    Matrix C = create_matrix(n);
-
-    fill_matrix(A);
-    fill_matrix(B);
-
+    std::string output_mode = workload_type + "_" + mode;
     int actual_threads = thread_count;
     double start_time = 0.0;
     double end_time = 0.0;
+    std::string correct = "skipped";
 
-    if (mode == "sequential") {
-        actual_threads = 1;
-        start_time = get_time_sec();
-        matmul_sequential(A, B, C);
-        end_time = get_time_sec();
-    } else if (mode == "static") {
-        actual_threads = std::max(1, std::min(thread_count, n));
-        start_time = get_time_sec();
-        matmul_static(A, B, C, actual_threads);
-        end_time = get_time_sec();
-    } else if (mode == "dynamic") {
-        actual_threads = tune_dynamic_thread_count(A, B, tuning_config);
-        start_time = get_time_sec();
-        matmul_optimized(A, B, C, actual_threads, block_size);
-        end_time = get_time_sec();
-    } else if (mode == "optimized") {
-        actual_threads = std::max(1, std::min(thread_count, n));
-        start_time = get_time_sec();
-        matmul_optimized(A, B, C, actual_threads, block_size);
-        end_time = get_time_sec();
+    if (workload_type == "matrix") {
+        Matrix A = create_matrix(n);
+        Matrix B = create_matrix(n);
+        Matrix C = create_matrix(n);
+
+        fill_matrix(A);
+        fill_matrix(B);
+
+        if (mode == "sequential") {
+            actual_threads = 1;
+            start_time = get_time_sec();
+            matmul_sequential(A, B, C);
+            end_time = get_time_sec();
+            correct = "true";
+        } else if (mode == "static") {
+            actual_threads = std::max(1, std::min(thread_count, n));
+            start_time = get_time_sec();
+            matmul_static(A, B, C, actual_threads);
+            end_time = get_time_sec();
+        } else if (mode == "dynamic") {
+            actual_threads = tune_dynamic_thread_count(n, tuning_config, [&](int threads) {
+                Matrix sample_a = create_matrix(std::max(1, std::min(tuning_config.sample_size, n)));
+                Matrix sample_b = create_matrix(std::max(1, std::min(tuning_config.sample_size, n)));
+                Matrix sample_c = create_matrix(std::max(1, std::min(tuning_config.sample_size, n)));
+                fill_matrix(sample_a);
+                fill_matrix(sample_b);
+                double start = get_time_sec();
+                matmul_optimized(sample_a, sample_b, sample_c, threads, block_size);
+                return get_time_sec() - start;
+            });
+
+            start_time = get_time_sec();
+            matmul_optimized(A, B, C, actual_threads, block_size);
+            end_time = get_time_sec();
+        } else if (mode == "optimized") {
+            actual_threads = std::max(1, std::min(thread_count, n));
+            start_time = get_time_sec();
+            matmul_optimized(A, B, C, actual_threads, block_size);
+            end_time = get_time_sec();
+        } else {
+            std::cerr << "Error: unknown mode: " << mode << "\n";
+            print_usage();
+            return 1;
+        }
+
+        if (mode != "sequential" && n <= 1024) {
+            Matrix reference = create_matrix(n);
+            matmul_sequential(A, B, reference);
+            correct = compare_matrices(C, reference) ? "true" : "false";
+        }
+    } else if (workload_type == "password") {
+        PasswordSearchConfig password_config;
+        password_config.charset = charset;
+        password_config.length = n;
+        password_config.target = password_target;
+        PasswordSearchWorkload password_workload(password_config);
+
+        if (mode == "sequential") {
+            actual_threads = 1;
+            start_time = get_time_sec();
+            password_workload(actual_threads);
+            end_time = get_time_sec();
+        } else if (mode == "static" || mode == "optimized") {
+            actual_threads = std::max(1, thread_count);
+            start_time = get_time_sec();
+            password_workload(actual_threads);
+            end_time = get_time_sec();
+        } else if (mode == "dynamic") {
+            actual_threads = tune_dynamic_thread_count(thread_count, tuning_config, password_workload);
+            start_time = get_time_sec();
+            password_workload(actual_threads);
+            end_time = get_time_sec();
+        } else {
+            std::cerr << "Error: unknown mode: " << mode << "\n";
+            print_usage();
+            return 1;
+        }
+
+        correct = password_workload.found() ? "true" : "false";
     } else {
-        std::cerr << "Error: unknown mode: " << mode << "\n";
+        std::cerr << "Error: unknown workload: " << workload_type << "\n";
         print_usage();
         return 1;
     }
 
     double runtime = end_time - start_time;
 
-    std::string correct = "skipped";
-
-    if (mode == "sequential") {
-        correct = "true";
-    } else if (n <= 1024) {
-        Matrix reference = create_matrix(n);
-        matmul_sequential(A, B, reference);
-        correct = compare_matrices(C, reference) ? "true" : "false";
-    }
-
     if (csv_mode) {
-        print_csv_output(mode, n, actual_threads, runtime, correct);
+        print_csv_output(output_mode, n, actual_threads, runtime, correct);
     } else {
-        print_table_output(mode, n, actual_threads, runtime, correct);
+        print_table_output(output_mode, n, actual_threads, runtime, correct);
     }
 
     return 0;

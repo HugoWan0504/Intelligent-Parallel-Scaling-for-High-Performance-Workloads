@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include "dynamic_tuner.h"
 
 struct Matrix {
     int n;
@@ -13,20 +14,6 @@ struct Matrix {
 
     double& operator()(int row, int col);
     const double& operator()(int row, int col) const;
-};
-
-enum class TuningGoal {
-    Performance,
-    Efficiency
-};
-
-struct DynamicTuningConfig {
-    TuningGoal goal = TuningGoal::Performance;
-    int max_threads = 0;
-    int sample_size = 512;
-    int trials = 3;
-    double efficiency_tolerance = 0.25;
-    int block_size = 32;
 };
 
 Matrix create_matrix(int n);

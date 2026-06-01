@@ -23,7 +23,7 @@ make
 echo "mode,N,threads,trial,time_sec,correct,goal,speedup,efficiency" > "${OUT}"
 
 run_matmul() {
-    ./matmul "$@" --csv
+    ./autotuner "$@" --csv
 }
 
 append_row() {
