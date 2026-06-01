@@ -15,7 +15,7 @@ OUT="${OUT:-results/password_crack.csv}"
 mkdir -p "$(dirname "${OUT}")"
 make
 
-echo "mode,length,threads,trial,time_sec,correct,goal,speedup,efficiency" > "${OUT}"
+echo "mode,length,threads,trial,time_sec,correct,goal" > "${OUT}"
 
 run_case() {
     ./autotuner "$@" --workload password --charset "${CHARSET}" --password-target "${TARGET}" --csv
@@ -29,15 +29,8 @@ append_row() {
     local time_sec="$5"
     local correct="$6"
     local goal="$7"
-    local serial_time="$8"
 
-    local speedup
-    local efficiency
-
-    speedup="$(awk -v s="${serial_time}" -v p="${time_sec}" 'BEGIN { if (p > 0) printf "%.6f", s / p; else printf "0.000000" }')"
-    efficiency="$(awk -v sp="${speedup}" -v th="${threads}" 'BEGIN { if (th > 0) printf "%.6f", sp / th; else printf "0.000000" }')"
-
-    echo "${mode},${length},${threads},${trial},${time_sec},${correct},${goal},${speedup},${efficiency}" >> "${OUT}"
+    echo "${mode},${length},${threads},${trial},${time_sec},${correct},${goal}" >> "${OUT}"
 }
 
 for length in ${LENGTH}; do
@@ -50,8 +43,6 @@ for length in ${LENGTH}; do
     done
 
     for trial in $(seq 1 "${TRIALS}"); do
-        serial_time=""
-
         # --- Static runs ---
         for threads in ${THREADS}; do
             static_line="$(run_case static "${length}" "${threads}")"
@@ -59,16 +50,7 @@ for length in ${LENGTH}; do
             static_time="$(echo "${static_line}" | awk -F, '{ print $4 }')"
             static_correct="$(echo "${static_line}" | awk -F, '{ print $5 }')"
 
-            if [[ "${threads}" == "1" ]]; then
-                serial_time="${static_time}"
-            fi
-
-            if [[ -z "${serial_time}" ]]; then
-                echo "Error: serial_time is not set for length ${length}. Ensure that the first run captures serial_time correctly."
-                exit 1
-            fi
-
-            append_row "static" "${length}" "${static_threads}" "${trial}" "${static_time}" "${static_correct}" "fixed" "${serial_time}"
+            append_row "static" "${length}" "${static_threads}" "${trial}" "${static_time}" "${static_correct}" "fixed"
         done
 
         # --- Dynamic runs (apply tuned thread counts) ---
@@ -79,7 +61,7 @@ for length in ${LENGTH}; do
             dynamic_time="$(echo "${dynamic_line}" | awk -F, '{ print $4 }')"
             dynamic_correct="$(echo "${dynamic_line}" | awk -F, '{ print $5 }')"
 
-            append_row "dynamic" "${length}" "${dynamic_threads}" "${trial}" "${dynamic_time}" "${dynamic_correct}" "${goal}" "${serial_time}"
+            append_row "dynamic" "${length}" "${dynamic_threads}" "${trial}" "${dynamic_time}" "${dynamic_correct}" "${goal}"
         done
     done
 done

@@ -25,11 +25,11 @@ def read_summary(input_path):
     grouped = defaultdict(
         lambda: {
             "times": [],
-            "speedups": [],
-            "efficiencies": [],
+            "threads": [],
             "selected_threads": Counter(),
         }
     )
+    baseline_times = defaultdict(list)
 
     with input_path.open(newline="") as csv_file:
         reader = csv.DictReader(csv_file)
@@ -37,22 +37,32 @@ def read_summary(input_path):
             label = result_label(row)
             length = int(row["length"])
             threads = int(row["threads"])
+            time_sec = float(row["time_sec"])
 
-            # Match matmul grouping behavior
             key = (label, length, 0) if label.startswith("dynamic_") else (label, length, threads)
 
-            grouped[key]["times"].append(float(row["time_sec"]))
-            grouped[key]["speedups"].append(float(row["speedup"]))
-            grouped[key]["efficiencies"].append(float(row["efficiency"]))
+            grouped[key]["times"].append(time_sec)
+            grouped[key]["threads"].append(threads)
             grouped[key]["selected_threads"][threads] += 1
+
+            if threads == 1 and label in {"static", "sequential"}:
+                baseline_times[length].append(time_sec)
+
+    baseline_avg = {
+        length: mean(times)
+        for length, times in baseline_times.items()
+        if times
+    }
 
     summary = []
     for (label, length, threads), values in grouped.items():
         selected_threads = values["selected_threads"].most_common(1)[0][0]
-
         times = values["times"]
-        speedups = values["speedups"]
-        efficiencies = values["efficiencies"]
+        threads_list = values["threads"]
+
+        baseline = baseline_avg.get(length, mean(times))
+        speedups = [baseline / t if t > 0 else 0.0 for t in times]
+        efficiencies = [s / th if th > 0 else 0.0 for s, th in zip(speedups, threads_list)]
 
         summary.append({
             "label": label,
