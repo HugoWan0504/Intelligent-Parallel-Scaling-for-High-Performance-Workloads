@@ -33,7 +33,6 @@ Modes:
 
 - `sequential`: serial baseline.
 - `static`: OpenMP matrix multiplication with a fixed number of threads.
-- `optimized`: OpenMP fixed-thread multiplication with cache blocking.
 - `dynamic`: OpenMP multiplication that first benchmarks candidate thread counts on a sample matrix, then runs the full problem with the selected thread count.
 
 The original pthread implementations are preserved in `src/pthread_legacy.cpp` for reference. They are not part of the default build because the main comparison now uses OpenMP throughout.
@@ -41,7 +40,6 @@ The original pthread implementations are preserved in `src/pthread_legacy.cpp` f
 Useful options:
 
 ```bash
---block-size B
 --tune-goal performance|efficiency
 --tune-sample-size N
 --tune-trials N
@@ -52,9 +50,7 @@ Useful options:
 Examples:
 
 ```bash
-./autotuner sequential 512 1
 ./autotuner static 512 4
-./autotuner optimized 512 4 --block-size 32
 ./autotuner dynamic 512 0 --tune-goal performance
 ./autotuner dynamic 512 0 --tune-goal efficiency --efficiency-tolerance 0.25
 ./autotuner dynamic 5 0 --workload password --charset abcdef --password-target abcde
@@ -67,7 +63,7 @@ For `dynamic`, the positional thread count may be `0`. Use `--max-threads` to ca
 The dynamic mode runs a short tuning phase before the real multiplication:
 
 1. Build a sample matrix with size `min(matrix_size, --tune-sample-size)`.
-2. Time OpenMP blocked multiplication for candidate thread counts from `1` to `--max-threads`.
+2. Time OpenMP multiplication for candidate thread counts from `1` to `--max-threads`.
 3. Compute speedup and efficiency for each candidate:
 
 ```text

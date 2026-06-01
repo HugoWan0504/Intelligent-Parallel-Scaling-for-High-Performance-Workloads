@@ -6,9 +6,9 @@
 #include <functional>
 #include <vector>
 
-static double timed_sample_run(const Matrix& A, const Matrix& B, Matrix& C, int threads, int block_size) {
+static double timed_sample_run(const Matrix& A, const Matrix& B, Matrix& C, int threads) {
     double start_time = get_time_sec();
-    matmul_optimized(A, B, C, threads, block_size);
+    matmul_static(A, B, C, threads);
     return get_time_sec() - start_time;
 }
 
@@ -26,7 +26,6 @@ int tune_dynamic_thread_count(const Matrix& A, const Matrix& B, const DynamicTun
     int n = A.n;
     int sample_n = std::max(1, std::min(config.sample_size, n));
     int max_threads = effective_max_threads(n, config);
-    int block_size = std::max(1, config.block_size);
 
     Matrix sample_a = create_matrix(sample_n);
     Matrix sample_b = create_matrix(sample_n);
@@ -36,7 +35,7 @@ int tune_dynamic_thread_count(const Matrix& A, const Matrix& B, const DynamicTun
     fill_matrix(sample_b);
 
     auto workload = [&](int threads) {
-        return timed_sample_run(sample_a, sample_b, sample_c, threads, block_size);
+        return timed_sample_run(sample_a, sample_b, sample_c, threads);
     };
 
     return tune_dynamic_thread_count(max_threads, config, workload);
@@ -44,5 +43,5 @@ int tune_dynamic_thread_count(const Matrix& A, const Matrix& B, const DynamicTun
 
 void matmul_dynamic(const Matrix& A, const Matrix& B, Matrix& C, int& selected_threads, const DynamicTuningConfig& config) {
     selected_threads = tune_dynamic_thread_count(A, B, config);
-    matmul_optimized(A, B, C, selected_threads, config.block_size);
+    matmul_static(A, B, C, selected_threads);
 }

@@ -50,12 +50,7 @@ for length in ${LENGTH}; do
     done
 
     for trial in $(seq 1 "${TRIALS}"); do
-        # --- Serial baseline ---
-        serial_line="$(run_case sequential "${length}" 1)"
-        serial_time="$(echo "${serial_line}" | awk -F, '{ print $4 }')"
-        serial_correct="$(echo "${serial_line}" | awk -F, '{ print $5 }')"
-
-        append_row "sequential" "${length}" 1 "${trial}" "${serial_time}" "${serial_correct}" "baseline" "${serial_time}"
+        serial_time=""
 
         # --- Static runs ---
         for threads in ${THREADS}; do
@@ -64,6 +59,15 @@ for length in ${LENGTH}; do
             static_time="$(echo "${static_line}" | awk -F, '{ print $4 }')"
             static_correct="$(echo "${static_line}" | awk -F, '{ print $5 }')"
 
+            if [[ "${threads}" == "1" ]]; then
+                serial_time="${static_time}"
+            fi
+
+            if [[ -z "${serial_time}" ]]; then
+                echo "Error: serial_time is not set for length ${length}. Ensure that the first run captures serial_time correctly."
+                exit 1
+            fi
+
             append_row "static" "${length}" "${static_threads}" "${trial}" "${static_time}" "${static_correct}" "fixed" "${serial_time}"
         done
 
@@ -71,7 +75,7 @@ for length in ${LENGTH}; do
         for goal in performance efficiency; do
             dynamic_threads="${dynamic_threads_by_goal[${goal}]}"
 
-            dynamic_line="$(run_case optimized "${length}" "${dynamic_threads}")"
+            dynamic_line="$(run_case dynamic "${length}" "${dynamic_threads}")"
             dynamic_time="$(echo "${dynamic_line}" | awk -F, '{ print $4 }')"
             dynamic_correct="$(echo "${dynamic_line}" | awk -F, '{ print $5 }')"
 

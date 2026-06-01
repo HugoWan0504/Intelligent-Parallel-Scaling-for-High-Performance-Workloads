@@ -25,6 +25,5 @@ void matmul_sequential(const Matrix& A, const Matrix& B, Matrix& C);
 void matmul_static(const Matrix& A, const Matrix& B, Matrix& C, int thread_count);
 int tune_dynamic_thread_count(const Matrix& A, const Matrix& B, const DynamicTuningConfig& config = DynamicTuningConfig());
 void matmul_dynamic(const Matrix& A, const Matrix& B, Matrix& C, int& selected_threads, const DynamicTuningConfig& config = DynamicTuningConfig());
-void matmul_optimized(const Matrix& A, const Matrix& B, Matrix& C, int thread_count, int block_size = 32);
 
 #endif

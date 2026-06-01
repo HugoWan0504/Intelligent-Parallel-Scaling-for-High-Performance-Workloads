@@ -11,9 +11,7 @@ import matplotlib.pyplot as plt
 
 # Fixed colors for consistent labeling
 LABEL_COLORS = {
-    "sequential": "black",
     "static": "tab:blue",
-    "optimized": "tab:orange",
     "dynamic_performance": "tab:green",
     "dynamic_efficiency": "tab:red",
 }

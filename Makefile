@@ -10,7 +10,6 @@ SRC = src/main.cpp \
       src/omp_dynamic.cpp \
       src/dynamic_tuner.cpp \
       src/password_search_workload.cpp \
-      src/omp_optimized.cpp
 
 all: $(TARGET)
 

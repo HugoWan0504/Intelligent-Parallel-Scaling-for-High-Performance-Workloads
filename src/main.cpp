@@ -13,26 +13,22 @@ static void print_usage() {
     std::cout << "Usage:\n";
     std::cout << "  ./autotuner <mode> <size> <thread_count> [--csv] [options]\n\n";
     std::cout << "Modes:\n";
-    std::cout << "  sequential\n";
     std::cout << "  static      OpenMP with a fixed thread count\n";
     std::cout << "  dynamic     OpenMP with sample-based thread tuning\n";
-    std::cout << "  optimized   OpenMP with a fixed thread count and cache blocking\n\n";
     std::cout << "Options:\n";
     std::cout << "  --csv\n";
     std::cout << "  --workload matrix|password\n";
     std::cout << "  --charset STRING\n";
     std::cout << "  --password-target STRING\n";
-    std::cout << "  --block-size B\n";
     std::cout << "  --tune-goal performance|efficiency\n";
     std::cout << "  --tune-sample-size N\n";
     std::cout << "  --tune-trials N\n";
     std::cout << "  --max-threads N\n";
     std::cout << "  --efficiency-tolerance F\n\n";
     std::cout << "Examples:\n";
-    std::cout << "  ./autotuner sequential 512 1\n";
     std::cout << "  ./autotuner static 1024 4 --csv\n";
     std::cout << "  ./autotuner dynamic 1024 0 --csv --tune-goal efficiency\n";
-    std::cout << "  ./autotuner optimized 1024 8 --block-size 64 --csv\n";
+    std::cout << "  ./autotuner optimized 1024 8 --csv\n";
     std::cout << "  ./autotuner dynamic 5 0 --workload password --charset abcdef --password-target fffff\n";
 }
 
@@ -98,7 +94,6 @@ int main(int argc, char* argv[]) {
     std::string workload_type = "matrix";
     std::string charset = "abcdefghijklmnopqrstuvwxyz";
     std::string password_target;
-    int block_size = 32;
     DynamicTuningConfig tuning_config;
 
     for (int i = 4; i < argc; i++) {
@@ -106,13 +101,6 @@ int main(int argc, char* argv[]) {
 
         if (option == "--csv") {
             csv_mode = true;
-        } else if (option == "--block-size") {
-            if (i + 1 >= argc || !parse_positive_int(argv[i + 1], block_size)) {
-                std::cerr << "Error: --block-size requires a positive integer.\n";
-                return 1;
-            }
-
-            i++;
         } else if (option == "--tune-goal") {
             if (i + 1 >= argc) {
                 std::cerr << "Error: --tune-goal requires performance or efficiency.\n";
@@ -204,8 +192,6 @@ int main(int argc, char* argv[]) {
         tuning_config.max_threads = thread_count;
     }
 
-    tuning_config.block_size = block_size;
-
     std::string output_mode = workload_type + "_" + mode;
     int actual_threads = thread_count;
     double start_time = 0.0;
@@ -220,13 +206,7 @@ int main(int argc, char* argv[]) {
         fill_matrix(A);
         fill_matrix(B);
 
-        if (mode == "sequential") {
-            actual_threads = 1;
-            start_time = get_time_sec();
-            matmul_sequential(A, B, C);
-            end_time = get_time_sec();
-            correct = "true";
-        } else if (mode == "static") {
+       if (mode == "static") {
             actual_threads = std::max(1, std::min(thread_count, n));
             start_time = get_time_sec();
             matmul_static(A, B, C, actual_threads);
@@ -239,17 +219,12 @@ int main(int argc, char* argv[]) {
                 fill_matrix(sample_a);
                 fill_matrix(sample_b);
                 double start = get_time_sec();
-                matmul_optimized(sample_a, sample_b, sample_c, threads, block_size);
+                matmul_static(sample_a, sample_b, sample_c, threads);
                 return get_time_sec() - start;
             });
 
             start_time = get_time_sec();
-            matmul_optimized(A, B, C, actual_threads, block_size);
-            end_time = get_time_sec();
-        } else if (mode == "optimized") {
-            actual_threads = std::max(1, std::min(thread_count, n));
-            start_time = get_time_sec();
-            matmul_optimized(A, B, C, actual_threads, block_size);
+            matmul_static(A, B, C, actual_threads);
             end_time = get_time_sec();
         } else {
             std::cerr << "Error: unknown mode: " << mode << "\n";
@@ -269,12 +244,7 @@ int main(int argc, char* argv[]) {
         password_config.target = password_target;
         PasswordSearchWorkload password_workload(password_config);
 
-        if (mode == "sequential") {
-            actual_threads = 1;
-            start_time = get_time_sec();
-            password_workload(actual_threads);
-            end_time = get_time_sec();
-        } else if (mode == "static" || mode == "optimized") {
+        if (mode == "static" || mode == "optimized") {
             actual_threads = std::max(1, thread_count);
             start_time = get_time_sec();
             password_workload(actual_threads);

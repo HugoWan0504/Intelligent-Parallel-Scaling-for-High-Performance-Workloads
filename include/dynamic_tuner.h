@@ -15,7 +15,6 @@ struct DynamicTuningConfig {
     int sample_size = 512;
     int trials = 3;
     double efficiency_tolerance = 0.25;
-    int block_size = 32; // workload-specific payload, ignored by the generic tuner itself
 };
 
 struct CandidateResult {
