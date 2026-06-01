@@ -50,23 +50,20 @@ static CandidateResult benchmark_candidate(const WorkloadFunction& workload,
 
     std::sort(times.begin(), times.end());
 
-    double average_time = 0.0;
-    if (static_cast<int>(times.size()) <= 2) {
-        for (double t : times) {
-            average_time += t;
+    double median_time = 0.0;
+    if (!times.empty()) {
+        size_t mid = times.size() / 2;
+        if (times.size() % 2 == 1) {
+            median_time = times[mid];
+        } else {
+            median_time = (times[mid - 1] + times[mid]) * 0.5;
         }
-        average_time /= static_cast<double>(times.size());
-    } else {
-        for (size_t i = 1; i + 1 < times.size(); ++i) {
-            average_time += times[i];
-        }
-        average_time /= static_cast<double>(times.size() - 2);
     }
 
-    double speedup = serial_time / average_time;
+    double speedup = serial_time / median_time;
     double efficiency = speedup / static_cast<double>(threads);
 
-    return CandidateResult{threads, average_time, speedup, efficiency};
+    return CandidateResult{threads, median_time, speedup, efficiency};
 }
 
 } // namespace
@@ -115,32 +112,77 @@ int tune_dynamic_thread_count(int max_threads_hint,
     }
 
     if (best_runtime != nullptr) {
-        int best_threads = best_runtime->threads;
-        std::vector<int> refine;
-        if (best_threads > 1) {
-            refine.push_back(best_threads - 1);
-        }
-        if (best_threads + 1 <= max_threads) {
-            refine.push_back(best_threads + 1);
-        }
+        auto is_power_of_two = [](int x) {
+            return x > 0 && (x & (x - 1)) == 0;
+        };
 
-        for (int t : refine) {
-            bool already = false;
+        auto prev_power_of_two = [](int x) {
+            int p = 1;
+            while (p * 2 <= x) {
+                p *= 2;
+            }
+            return p;
+        };
+
+        auto already_tested = [&](int t) {
             for (const CandidateResult& c : candidates) {
                 if (c.threads == t) {
-                    already = true;
-                    break;
+                    return true;
                 }
             }
-            if (already) {
-                continue;
+            return false;
+        };
+
+        auto find_candidate = [&](int t) -> const CandidateResult* {
+            for (const CandidateResult& c : candidates) {
+                if (c.threads == t) {
+                    return &c;
+                }
             }
-            candidates.push_back(benchmark_candidate(workload, t, trials, serial_time));
+            return nullptr;
+        };
+
+        int best_threads = best_runtime->threads;
+        int lower_bound = best_threads;
+        int upper_bound = best_threads;
+
+        if (is_power_of_two(best_threads)) {
+            lower_bound = best_threads;
+            upper_bound = std::min(max_threads, best_threads * 2);
+        } else {
+            lower_bound = prev_power_of_two(best_threads);
+            upper_bound = best_threads;
         }
 
-        for (const CandidateResult& candidate : candidates) {
-            if (candidate.best_time < best_runtime->best_time) {
-                best_runtime = &candidate;
+        while (lower_bound + 1 < upper_bound) {
+            int mid = (lower_bound + upper_bound) / 2;
+            if (mid == lower_bound || mid == upper_bound || already_tested(mid)) {
+                break;
+            }
+
+            candidates.push_back(benchmark_candidate(workload, mid, trials, serial_time));
+            const CandidateResult* mid_candidate = &candidates.back();
+            if (mid_candidate->best_time < best_runtime->best_time) {
+                best_runtime = mid_candidate;
+            }
+
+            const CandidateResult* low_candidate = find_candidate(lower_bound);
+            const CandidateResult* high_candidate = find_candidate(upper_bound);
+            if (!low_candidate || !high_candidate) {
+                break;
+            }
+
+            if (mid_candidate->best_time < low_candidate->best_time &&
+                mid_candidate->best_time < high_candidate->best_time) {
+                if (mid - lower_bound > upper_bound - mid) {
+                    lower_bound = mid;
+                } else {
+                    upper_bound = mid;
+                }
+            } else if (mid_candidate->best_time > low_candidate->best_time) {
+                upper_bound = mid;
+            } else {
+                lower_bound = mid;
             }
         }
     }
