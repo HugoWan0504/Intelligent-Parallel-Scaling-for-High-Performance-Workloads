@@ -163,7 +163,7 @@ def plot_metric(rows, length, metric, std_metric, title, ylabel, output_path):
         ax.set_xticks(fixed_threads)
 
     ax.grid(True, alpha=0.25)
-    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False)
+    ax.legend(loc="best", frameon=True)
 
     fig.tight_layout()
     fig.savefig(output_path)

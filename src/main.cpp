@@ -212,17 +212,20 @@ int main(int argc, char* argv[]) {
             matmul_static(A, B, C, actual_threads);
             end_time = get_time_sec();
         } else if (mode == "dynamic") {
-            actual_threads = tune_dynamic_thread_count(n, tuning_config, [&](int threads) {
-                Matrix sample_a = create_matrix(std::max(1, std::min(tuning_config.sample_size, n)));
-                Matrix sample_b = create_matrix(std::max(1, std::min(tuning_config.sample_size, n)));
-                Matrix sample_c = create_matrix(std::max(1, std::min(tuning_config.sample_size, n)));
-                fill_matrix(sample_a);
-                fill_matrix(sample_b);
-                double start = get_time_sec();
-                matmul_static(sample_a, sample_b, sample_c, threads);
-                return get_time_sec() - start;
-            });
+            if (thread_count == 0) {
+                actual_threads = tune_dynamic_thread_count(n, tuning_config, [&](int threads) {
+                    Matrix sample_a = create_matrix(std::max(1, std::min(tuning_config.sample_size, n)));
+                    Matrix sample_b = create_matrix(std::max(1, std::min(tuning_config.sample_size, n)));
+                    Matrix sample_c = create_matrix(std::max(1, std::min(tuning_config.sample_size, n)));
+                    fill_matrix(sample_a);
+                    fill_matrix(sample_b);
+                    double start = get_time_sec();
+                    matmul_static(sample_a, sample_b, sample_c, threads);
+                    return get_time_sec() - start;
+                });
+            }
 
+            std::cerr << "Tuned thread count: " << actual_threads << "\n";
             start_time = get_time_sec();
             matmul_static(A, B, C, actual_threads);
             end_time = get_time_sec();

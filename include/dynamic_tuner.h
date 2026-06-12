@@ -19,7 +19,7 @@ struct DynamicTuningConfig {
 
 struct CandidateResult {
     int threads;
-    double best_time;
+    double median_time;
     double speedup;
     double efficiency;
 };

@@ -4,6 +4,7 @@
 #include <limits>
 #include <thread>
 #include <vector>
+#include <iostream>
 
 namespace {
 
@@ -74,7 +75,7 @@ int tune_dynamic_thread_count(int max_threads_hint,
     int max_threads = effective_max_threads(max_threads_hint, config);
     int trials = std::max(1, config.trials);
 
-    double serial_time = benchmark_candidate(workload, 1, trials, 1.0).best_time;
+    double serial_time = benchmark_candidate(workload, 1, trials, 1.0).median_time;
 
     std::vector<int> thread_counts = candidate_thread_counts(max_threads);
     std::vector<CandidateResult> candidates;
@@ -82,27 +83,17 @@ int tune_dynamic_thread_count(int max_threads_hint,
 
     const CandidateResult* best_runtime = nullptr;
     double best_time_so_far = std::numeric_limits<double>::infinity();
-    int worsening_count = 0;
-    const int worsening_limit = 2;
-    const double worsening_tol = 0.005;
 
     for (int threads : thread_counts) {
         CandidateResult res = benchmark_candidate(workload, threads, trials, serial_time);
         candidates.push_back(res);
 
-        if (res.best_time + 1e-12 < best_time_so_far) {
-            best_time_so_far = res.best_time;
-            best_runtime = &candidates.back();
-            worsening_count = 0;
-        } else {
-            if (res.best_time > best_time_so_far * (1.0 + worsening_tol)) {
-                ++worsening_count;
-            } else {
-                worsening_count = 0;
-            }
-        }
+        std::cerr << res.median_time << " " << best_time_so_far << " " << res.threads << "\n";
 
-        if (worsening_count >= worsening_limit) {
+        if (res.median_time + 1e-12 < best_time_so_far) {
+            best_time_so_far = res.median_time;
+            best_runtime = &candidates.back();
+        } else {
             break;
         }
     }
@@ -111,6 +102,7 @@ int tune_dynamic_thread_count(int max_threads_hint,
         best_runtime = &candidates.front();
     }
 
+    // Optional refinement phase (kept as-is)
     if (best_runtime != nullptr) {
         auto is_power_of_two = [](int x) {
             return x > 0 && (x & (x - 1)) == 0;
@@ -162,7 +154,7 @@ int tune_dynamic_thread_count(int max_threads_hint,
 
             candidates.push_back(benchmark_candidate(workload, mid, trials, serial_time));
             const CandidateResult* mid_candidate = &candidates.back();
-            if (mid_candidate->best_time < best_runtime->best_time) {
+            if (mid_candidate->median_time < best_runtime->median_time) {
                 best_runtime = mid_candidate;
             }
 
@@ -172,14 +164,14 @@ int tune_dynamic_thread_count(int max_threads_hint,
                 break;
             }
 
-            if (mid_candidate->best_time < low_candidate->best_time &&
-                mid_candidate->best_time < high_candidate->best_time) {
+            if (mid_candidate->median_time < low_candidate->median_time &&
+                mid_candidate->median_time < high_candidate->median_time) {
                 if (mid - lower_bound > upper_bound - mid) {
                     lower_bound = mid;
                 } else {
                     upper_bound = mid;
                 }
-            } else if (mid_candidate->best_time > low_candidate->best_time) {
+            } else if (mid_candidate->median_time > low_candidate->median_time) {
                 upper_bound = mid;
             } else {
                 lower_bound = mid;
@@ -207,8 +199,8 @@ int tune_dynamic_thread_count(int max_threads_hint,
         }
 
         if (selected == nullptr ||
-            candidate.best_time < selected->best_time ||
-            (candidate.best_time == selected->best_time && candidate.threads < selected->threads)) {
+            candidate.median_time < selected->median_time ||
+            (candidate.median_time == selected->median_time && candidate.threads < selected->threads)) {
             selected = &candidate;
         }
     }

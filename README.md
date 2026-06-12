@@ -67,7 +67,7 @@ The dynamic mode runs a short tuning phase before the real multiplication:
 3. Compute speedup and efficiency for each candidate:
 
 ```text
-Speedup:    S = T_serial / T_parallel
+Speedup:    S = T_parallel / T_serial
 Efficiency: E = S / P
 ```
 
@@ -83,7 +83,7 @@ The reported runtime for dynamic mode measures the final multiplication after tu
 Run the default benchmark:
 
 ```bash
-scripts/run_openmp_benchmarks.sh
+scripts/run_matmul_benchmarks.sh
 ```
 
 Run the password search workload benchmark:
@@ -113,28 +113,28 @@ python3 -m pip install -r requirements.txt
 Generate matplotlib plots:
 
 ```bash
-scripts/plot_openmp_results.sh
+scripts/plot_matmul_results.sh
 ```
 
 Outputs:
 
 ```bash
 results/openmp_scaling_summary.csv
-plots/openmp_scaling/runtime_N128.png
+plots/openmp_scaling/time_N128.png
 plots/openmp_scaling/speedup_N128.png
 plots/openmp_scaling/efficiency_N128.png
 ```
 
-The shell wrapper calls `scripts/plot_openmp_results.py`. To choose another output format:
+The shell wrapper calls `scripts/plot_matmul_results.py`. To choose another output format:
 
 ```bash
-FORMAT=svg scripts/plot_openmp_results.sh
+FORMAT=svg scripts/plot_matmul_results.sh
 ```
 
 You can adjust the benchmark without editing the script:
 
 ```bash
-SIZES="128 256 512 1024" THREADS="1 2 4 8 16" TRIALS=5 scripts/run_openmp_benchmarks.sh
+SIZES="128 256 512 1024" THREADS="1 2 4 8 16" TRIALS=5 scripts/run_matmul_benchmarks.sh
 ```
 
 The CSV columns are:
@@ -146,3 +146,18 @@ mode,N,threads,trial,time_sec,correct,goal,speedup,efficiency
 The summary CSV groups fixed modes by `label,N,threads` and dynamic modes by `label,N`. Each plot shows one matrix size with thread count on the x-axis. Static and optimized runs form curves across the tested thread counts. Tuned runs are labeled `dynamic_performance` and `dynamic_efficiency` and are drawn as horizontal reference bars across the chart, with the selected thread count shown in the legend.
 
 Note that `dynamic_efficiency` optimizes the tuning sample, while the plotted dynamic runtime includes both tuning and the final multiplication. It may not always have the highest end-to-end efficiency if the sample is noisy, too small, or not representative of the full matrix size.
+
+## Report
+
+The project includes a technical report in Typst format. To compile it:
+
+```bash
+# Install Typst and fonts-texgyre first
+typst compile report.typ
+```
+
+If you encounter font warnings, you may need to set the font path:
+
+```bash
+TYPST_FONT_PATHS=/usr/share/texmf/fonts/opentype/public/tex-gyre typst compile report.typ
+```
