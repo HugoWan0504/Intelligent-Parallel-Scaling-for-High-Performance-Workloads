@@ -102,99 +102,14 @@ int tune_dynamic_thread_count(int max_threads_hint,
         best_runtime = &candidates.front();
     }
 
-    // Optional refinement phase (kept as-is)
-    if (best_runtime != nullptr) {
-        auto is_power_of_two = [](int x) {
-            return x > 0 && (x & (x - 1)) == 0;
-        };
-
-        auto prev_power_of_two = [](int x) {
-            int p = 1;
-            while (p * 2 <= x) {
-                p *= 2;
-            }
-            return p;
-        };
-
-        auto already_tested = [&](int t) {
-            for (const CandidateResult& c : candidates) {
-                if (c.threads == t) {
-                    return true;
-                }
-            }
-            return false;
-        };
-
-        auto find_candidate = [&](int t) -> const CandidateResult* {
-            for (const CandidateResult& c : candidates) {
-                if (c.threads == t) {
-                    return &c;
-                }
-            }
-            return nullptr;
-        };
-
-        int best_threads = best_runtime->threads;
-        int lower_bound = best_threads;
-        int upper_bound = best_threads;
-
-        if (is_power_of_two(best_threads)) {
-            lower_bound = best_threads;
-            upper_bound = std::min(max_threads, best_threads * 2);
-        } else {
-            lower_bound = prev_power_of_two(best_threads);
-            upper_bound = best_threads;
-        }
-
-        while (lower_bound + 1 < upper_bound) {
-            int mid = (lower_bound + upper_bound) / 2;
-            if (mid == lower_bound || mid == upper_bound || already_tested(mid)) {
-                break;
-            }
-
-            candidates.push_back(benchmark_candidate(workload, mid, trials, serial_time));
-            const CandidateResult* mid_candidate = &candidates.back();
-            if (mid_candidate->median_time < best_runtime->median_time) {
-                best_runtime = mid_candidate;
-            }
-
-            const CandidateResult* low_candidate = find_candidate(lower_bound);
-            const CandidateResult* high_candidate = find_candidate(upper_bound);
-            if (!low_candidate || !high_candidate) {
-                break;
-            }
-
-            if (mid_candidate->median_time < low_candidate->median_time &&
-                mid_candidate->median_time < high_candidate->median_time) {
-                if (mid - lower_bound > upper_bound - mid) {
-                    lower_bound = mid;
-                } else {
-                    upper_bound = mid;
-                }
-            } else if (mid_candidate->median_time > low_candidate->median_time) {
-                upper_bound = mid;
-            } else {
-                lower_bound = mid;
-            }
-        }
-    }
-
     if (config.goal == TuningGoal::Performance) {
-        return best_runtime->threads;
+        return best_runtime != nullptr ? best_runtime->threads : 1;
     }
 
-    double max_efficiency = 0.0;
-    for (const CandidateResult& c : candidates) {
-        if (c.efficiency > max_efficiency) {
-            max_efficiency = c.efficiency;
-        }
-    }
-
-    double min_efficiency = 0.8 * max_efficiency;
+    // Goal: Efficiency
     const CandidateResult* selected = nullptr;
-
-    for (const CandidateResult& candidate : candidates) {
-        if (candidate.efficiency + 1e-12 < min_efficiency) {
+    for (const auto& candidate : candidates) {
+        if (candidate.median_time > best_runtime->median_time * (1.0 + config.efficiency_tolerance)) {
             continue;
         }
 
@@ -205,5 +120,5 @@ int tune_dynamic_thread_count(int max_threads_hint,
         }
     }
 
-    return selected != nullptr ? selected->threads : best_runtime->threads;
+    return selected != nullptr ? selected->threads : (best_runtime != nullptr ? best_runtime->threads : 1);
 }
