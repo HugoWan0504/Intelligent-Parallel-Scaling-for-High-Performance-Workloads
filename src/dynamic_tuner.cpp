@@ -88,13 +88,9 @@ int tune_dynamic_thread_count(int max_threads_hint,
         CandidateResult res = benchmark_candidate(workload, threads, trials, serial_time);
         candidates.push_back(res);
 
-        std::cerr << res.median_time << " " << best_time_so_far << " " << res.threads << "\n";
-
         if (res.median_time + 1e-12 < best_time_so_far) {
             best_time_so_far = res.median_time;
             best_runtime = &candidates.back();
-        } else {
-            break;
         }
     }
 
