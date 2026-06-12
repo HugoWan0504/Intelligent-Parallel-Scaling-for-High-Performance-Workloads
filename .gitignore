@@ -20,3 +20,5 @@ plots/
 results/
 
 .devcontainer
+
+report.pdf
